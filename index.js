@@ -1,50 +1,411 @@
-function doPost(e) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const data = JSON.parse(e.postData.contents);
+import express from "express";
+import {
+  Client,
+  GatewayIntentBits,
+  SlashCommandBuilder,
+  REST,
+  Routes
+} from "discord.js";
+import sqlite3 from "sqlite3";
+import cron from "node-cron";
 
-  sheet.clearContents();
-  sheet.appendRow([
-    "Discord ID",
-    "Nickname",
-    "Expiry Timestamp",
-    "Expiry Date",
-    "Remaining Days"
-  ]);
+/* ================= ENV ================= */
 
-  const today = new Date();
+const token = process.env.BOT_TOKEN;
+const guildId = process.env.GUILD_ID;
+const primeRoleId = process.env.PRIME_ROLE_ID;
+const staffRoleId = process.env.STAFF_ROLE_ID;
+const logChannelId = process.env.LOG_CHANNEL_ID;
+const commandChannelId = process.env.COMMAND_CHANNEL_ID;
+const backupWebhookUrl = process.env.BACKUP_WEBHOOK_URL;
 
-  data.members.forEach(member => {
-    const expiryDate = new Date(member.expiry);
-    const remainingDays = Math.ceil(
-      (member.expiry - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
+const PRICE_PER_MONTH = 2000000;
+const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 
-    sheet.appendRow([
-      member.userId,
-      member.nickname || "Unknown",
-      member.expiry,
-      expiryDate,
-      remainingDays
-    ]);
-  });
+/* ================= CLIENT ================= */
 
-  return ContentService.createTextOutput("Backup complete");
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+});
+
+/* ================= DATABASE ================= */
+
+const db = new sqlite3.Database("./database.db");
+
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS members (
+      userId TEXT PRIMARY KEY,
+      expiry INTEGER,
+      warned INTEGER DEFAULT 0
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS allocations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      year INTEGER,
+      month INTEGER,
+      amount INTEGER
+    )
+  `);
+});
+
+/* ================= LOGGING ================= */
+
+async function logMessage(message) {
+  if (!logChannelId) return;
+  const channel = await client.channels.fetch(logChannelId).catch(() => null);
+  if (!channel) return;
+  channel.send(message).catch(() => {});
 }
 
-function doGet() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const data = sheet.getDataRange().getValues();
+/* ================= BACKUP (WITH NICKNAMES) ================= */
 
-  const members = [];
+async function sendBackup() {
+  if (!backupWebhookUrl) return;
 
-  for (let i = 1; i < data.length; i++) {
-    members.push({
-      userId: data[i][0],   // Column A
-      expiry: Number(data[i][2]) // Column C (timestamp)
+  db.all(`SELECT userId, expiry FROM members`, async (err, rows) => {
+    if (err) return console.error(err);
+
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return;
+
+    const enriched = [];
+
+    for (const row of rows) {
+      const member = await guild.members.fetch(row.userId).catch(() => null);
+
+      enriched.push({
+        userId: row.userId,
+        nickname: member ? member.displayName : "Unknown",
+        expiry: row.expiry
+      });
+    }
+
+    try {
+      await fetch(backupWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ members: enriched })
+      });
+
+      console.log("✅ Backup synced to Google Sheets");
+    } catch (err) {
+      console.error("Backup failed:", err);
+    }
+  });
+}
+
+/* ================= RESTORE ================= */
+
+async function restoreFromBackup() {
+  if (!backupWebhookUrl) return;
+
+  try {
+    const response = await fetch(backupWebhookUrl);
+    const data = await response.json();
+
+    if (!data.members || !data.members.length) return;
+
+    console.log("🔄 Restoring from Google Sheets...");
+
+    for (const member of data.members) {
+      db.run(
+        `INSERT OR REPLACE INTO members (userId, expiry, warned)
+         VALUES (?, ?, 0)`,
+        [member.userId, member.expiry]
+      );
+
+      const guild = client.guilds.cache.get(guildId);
+      if (!guild) continue;
+
+      const guildMember = await guild.members.fetch(member.userId).catch(() => null);
+      if (guildMember)
+        await guildMember.roles.add(primeRoleId).catch(() => {});
+    }
+
+    console.log("✅ Restore complete");
+  } catch (err) {
+    console.error("Restore failed:", err);
+  }
+}
+
+/* ================= READY ================= */
+
+client.once("ready", async () => {
+  console.log(`✅ Logged in as ${client.user.tag}`);
+
+  db.get("SELECT COUNT(*) as count FROM members", async (err, row) => {
+    if (row.count === 0) {
+      await restoreFromBackup();
+    }
+  });
+
+  const command = new SlashCommandBuilder()
+    .setName("prime")
+    .setDescription("Manage Prime membership")
+
+    .addSubcommand(sub =>
+      sub.setName("add")
+        .setDescription("Add months")
+        .addUserOption(o => o.setName("user").setDescription("User").setRequired(true))
+        .addIntegerOption(o => o.setName("months").setDescription("Months").setRequired(true))
+    )
+
+    .addSubcommand(sub =>
+      sub.setName("set")
+        .setDescription("Set exact remaining days")
+        .addUserOption(o => o.setName("user").setDescription("User").setRequired(true))
+        .addIntegerOption(o => o.setName("days").setDescription("Days").setRequired(true))
+    )
+
+    .addSubcommand(sub =>
+      sub.setName("remove")
+        .setDescription("Remove Prime")
+        .addUserOption(o => o.setName("user").setDescription("User").setRequired(true))
+    )
+
+    .addSubcommand(sub =>
+      sub.setName("list")
+        .setDescription("List Prime members")
+    )
+
+    .addSubcommand(sub =>
+      sub.setName("backup")
+        .setDescription("Manually trigger backup")
+    )
+
+    .addSubcommand(sub =>
+      sub.setName("testwarning")
+        .setDescription("Send test 3-day warning DM")
+        .addUserOption(o => o.setName("user").setDescription("User").setRequired(true))
+    )
+
+    .addSubcommand(sub =>
+      sub.setName("testexpire")
+        .setDescription("Force expire user")
+        .addUserOption(o => o.setName("user").setDescription("User").setRequired(true))
+    )
+
+    .addSubcommand(sub =>
+      sub.setName("revenue")
+        .setDescription("Show current + next 2 month allocation revenue")
+    );
+
+  const rest = new REST({ version: "10" }).setToken(token);
+
+  await rest.put(
+    Routes.applicationGuildCommands(client.user.id, guildId),
+    { body: [command.toJSON()] }
+  );
+
+  console.log("✅ Slash commands registered");
+});
+
+/* ================= COMMAND HANDLER ================= */
+
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+
+  if (!interaction.member.roles.cache.has(staffRoleId))
+    return interaction.reply({ content: "❌ Staff only.", ephemeral: true });
+
+  if (interaction.channelId !== commandChannelId)
+    return interaction.reply({ content: "❌ Use Prime commands channel.", ephemeral: true });
+
+  await interaction.deferReply();
+
+  const sub = interaction.options.getSubcommand();
+  const now = Date.now();
+  const user = interaction.options.getUser("user");
+  const guildMember = user
+    ? await interaction.guild.members.fetch(user.id).catch(() => null)
+    : null;
+
+  /* ===== ADD ===== */
+  if (sub === "add") {
+    const months = interaction.options.getInteger("months");
+    const addedTime = months * THIRTY_DAYS;
+
+    db.get(`SELECT * FROM members WHERE userId = ?`, [user.id], async (err, row) => {
+      const baseExpiry =
+        row && row.expiry > now ? row.expiry : now;
+
+      const newExpiry = baseExpiry + addedTime;
+
+      db.run(
+        `INSERT OR REPLACE INTO members (userId, expiry, warned) VALUES (?, ?, 0)`,
+        [user.id, newExpiry]
+      );
+
+      await guildMember.roles.add(primeRoleId);
+
+      // ALLOCATIONS
+      for (let i = 0; i < months; i++) {
+        const allocationDate = new Date(baseExpiry + (i * THIRTY_DAYS));
+        const year = allocationDate.getUTCFullYear();
+        const month = allocationDate.getUTCMonth() + 1;
+
+        db.run(
+          `INSERT INTO allocations (year, month, amount) VALUES (?, ?, ?)`,
+          [year, month, PRICE_PER_MONTH]
+        );
+      }
+
+      await interaction.editReply(
+        `✅ ${guildMember.displayName} updated until <t:${Math.floor(newExpiry/1000)}:F>`
+      );
+
+      await logMessage(
+        `🟢 ${interaction.member.displayName} added ${months} month(s) to ${guildMember.displayName}`
+      );
+
+      await sendBackup();
     });
   }
 
-  return ContentService
-    .createTextOutput(JSON.stringify({ members }))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+  /* ===== REVENUE ===== */
+  if (sub === "revenue") {
+    const monthsToShow = [0, 1, 2].map(offset => {
+      const d = new Date(now + offset * THIRTY_DAYS);
+      return {
+        year: d.getUTCFullYear(),
+        month: d.getUTCMonth() + 1
+      };
+    });
+
+    const results = [];
+
+    for (const m of monthsToShow) {
+      await new Promise(resolve => {
+        db.get(
+          `SELECT SUM(amount) as total FROM allocations WHERE year = ? AND month = ?`,
+          [m.year, m.month],
+          (err, row) => {
+            results.push({
+              label: `${m.month}/${m.year}`,
+              total: row?.total || 0
+            });
+            resolve();
+          }
+        );
+      });
+    }
+
+    const formatted = results.map(r =>
+      `${r.label} → ${r.total.toLocaleString()} GP`
+    ).join("\n");
+
+    await interaction.editReply(`📊 Allocation Revenue:\n\n${formatted}`);
+  }
+
+  /* ===== (ALL OTHER ORIGINAL COMMANDS REMAIN UNCHANGED BELOW) ===== */
+
+  if (sub === "set") {
+    const days = interaction.options.getInteger("days");
+    const newExpiry = now + days * 24 * 60 * 60 * 1000;
+
+    db.run(
+      `INSERT OR REPLACE INTO members (userId, expiry, warned) VALUES (?, ?, 0)`,
+      [user.id, newExpiry]
+    );
+
+    await guildMember.roles.add(primeRoleId);
+
+    await interaction.editReply(
+      `🔧 ${guildMember.displayName} set to ${days} days remaining`
+    );
+
+    await logMessage(
+      `🛠 ${interaction.member.displayName} set ${guildMember.displayName} to ${days} days`
+    );
+
+    await sendBackup();
+  }
+
+  if (sub === "remove") {
+    db.run(`DELETE FROM members WHERE userId = ?`, [user.id]);
+    await guildMember.roles.remove(primeRoleId);
+
+    await interaction.editReply(
+      `❌ Prime removed from ${guildMember.displayName}`
+    );
+
+    await logMessage(
+      `🔴 ${interaction.member.displayName} removed Prime from ${guildMember.displayName}`
+    );
+
+    await sendBackup();
+  }
+
+  if (sub === "list") {
+    db.all(`SELECT * FROM members`, async (err, rows) => {
+      if (!rows.length)
+        return interaction.editReply("No active members.");
+
+      const list = rows.map(r => {
+        const remaining = Math.ceil((r.expiry - now) / (1000 * 60 * 60 * 24));
+        return `<@${r.userId}> — ${remaining} days`;
+      }).join("\n");
+
+      await interaction.editReply(list);
+    });
+  }
+
+  if (sub === "backup") {
+    await sendBackup();
+    await interaction.editReply("📦 Backup sent.");
+  }
+
+  if (sub === "testwarning") {
+    await guildMember.send("⚠ **TEST: Prime expires in 3 days.**");
+    await interaction.editReply("📩 Test warning sent.");
+  }
+
+  if (sub === "testexpire") {
+    db.run(`DELETE FROM members WHERE userId = ?`, [user.id]);
+    await guildMember.roles.remove(primeRoleId);
+    await guildMember.send("❌ **TEST: Prime expired.**");
+    await interaction.editReply("⚠ User force expired.");
+    await sendBackup();
+  }
+});
+
+/* ================= DAILY CHECK ================= */
+
+cron.schedule("0 12 * * *", async () => {
+  const now = Date.now();
+  const warningTime = 3 * 24 * 60 * 60 * 1000;
+
+  db.all(`SELECT * FROM members`, async (err, rows) => {
+    for (const row of rows) {
+      const guild = client.guilds.cache.get(guildId);
+      if (!guild) continue;
+
+      const member = await guild.members.fetch(row.userId).catch(() => null);
+      if (!member) continue;
+
+      if (row.expiry <= now) {
+        await member.roles.remove(primeRoleId);
+        db.run(`DELETE FROM members WHERE userId = ?`, [row.userId]);
+        member.send("❌ **MTFU Prime Expired**");
+      }
+
+      else if (row.expiry - now <= warningTime && row.warned === 0) {
+        member.send("⚠ **MTFU Prime expires in 3 days**");
+        db.run(`UPDATE members SET warned = 1 WHERE userId = ?`, [row.userId]);
+      }
+    }
+  });
+
+  await sendBackup();
+});
+
+/* ================= EXPRESS ================= */
+
+client.login(token);
+
+const app = express();
+app.get("/", (req, res) => res.send("MTFU Prime running."));
+app.listen(process.env.PORT || 3000);
