@@ -19,6 +19,8 @@ const logChannelId = process.env.LOG_CHANNEL_ID;
 const commandChannelId = process.env.COMMAND_CHANNEL_ID;
 const backupWebhookUrl = process.env.BACKUP_WEBHOOK_URL;
 
+/* ================= CLIENT ================= */
+
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
 });
@@ -34,6 +36,15 @@ CREATE TABLE IF NOT EXISTS members (
   warned INTEGER DEFAULT 0
 )
 `);
+
+/* ================= LOGGING ================= */
+
+async function logMessage(message) {
+  if (!logChannelId) return;
+  const channel = await client.channels.fetch(logChannelId).catch(() => null);
+  if (!channel) return;
+  channel.send(message).catch(() => {});
+}
 
 /* ================= BACKUP ================= */
 
@@ -170,9 +181,9 @@ client.on("interactionCreate", async interaction => {
     return interaction.reply({ content: "❌ Use Prime commands channel.", ephemeral: true });
 
   await interaction.deferReply();
+
   const sub = interaction.options.getSubcommand();
   const now = Date.now();
-
   const user = interaction.options.getUser("user");
   const guildMember = user
     ? await interaction.guild.members.fetch(user.id).catch(() => null)
@@ -193,7 +204,15 @@ client.on("interactionCreate", async interaction => {
       );
 
       await guildMember.roles.add(primeRoleId);
-      await interaction.editReply(`✅ ${guildMember.displayName} updated.`);
+
+      await interaction.editReply(
+        `✅ ${guildMember.displayName} updated until <t:${Math.floor(newExpiry/1000)}:F>`
+      );
+
+      await logMessage(
+        `🟢 ${interaction.member.displayName} added ${months} month(s) to ${guildMember.displayName}`
+      );
+
       await sendBackup();
     });
   }
@@ -209,7 +228,15 @@ client.on("interactionCreate", async interaction => {
     );
 
     await guildMember.roles.add(primeRoleId);
-    await interaction.editReply(`🔧 ${guildMember.displayName} set to ${days} days.`);
+
+    await interaction.editReply(
+      `🔧 ${guildMember.displayName} set to ${days} days remaining`
+    );
+
+    await logMessage(
+      `🛠 ${interaction.member.displayName} set ${guildMember.displayName} to ${days} days`
+    );
+
     await sendBackup();
   }
 
@@ -217,7 +244,15 @@ client.on("interactionCreate", async interaction => {
   if (sub === "remove") {
     db.run(`DELETE FROM members WHERE userId = ?`, [user.id]);
     await guildMember.roles.remove(primeRoleId);
-    await interaction.editReply("❌ Prime removed.");
+
+    await interaction.editReply(
+      `❌ Prime removed from ${guildMember.displayName}`
+    );
+
+    await logMessage(
+      `🔴 ${interaction.member.displayName} removed Prime from ${guildMember.displayName}`
+    );
+
     await sendBackup();
   }
 
