@@ -46,33 +46,51 @@ client.once("ready", async () => {
 
     .addSubcommand(sub =>
       sub.setName("add")
-        .setDescription("Add months")
-        .addUserOption(o => o.setName("user").setRequired(true))
-        .addIntegerOption(o => o.setName("months").setRequired(true))
+        .setDescription("Add months to a member")
+        .addUserOption(o =>
+          o.setName("user")
+            .setDescription("User to give Prime to")
+            .setRequired(true))
+        .addIntegerOption(o =>
+          o.setName("months")
+            .setDescription("Number of months to add")
+            .setRequired(true))
     )
 
     .addSubcommand(sub =>
       sub.setName("set")
         .setDescription("Set exact remaining days")
-        .addUserOption(o => o.setName("user").setRequired(true))
-        .addIntegerOption(o => o.setName("days").setRequired(true))
+        .addUserOption(o =>
+          o.setName("user")
+            .setDescription("User to modify")
+            .setRequired(true))
+        .addIntegerOption(o =>
+          o.setName("days")
+            .setDescription("Exact number of days remaining")
+            .setRequired(true))
     )
 
     .addSubcommand(sub =>
       sub.setName("remove")
-        .setDescription("Remove Prime")
-        .addUserOption(o => o.setName("user").setRequired(true))
+        .setDescription("Remove Prime from member")
+        .addUserOption(o =>
+          o.setName("user")
+            .setDescription("User to remove Prime from")
+            .setRequired(true))
     )
 
     .addSubcommand(sub =>
       sub.setName("check")
-        .setDescription("Check expiry")
-        .addUserOption(o => o.setName("user").setRequired(true))
+        .setDescription("Check Prime expiry")
+        .addUserOption(o =>
+          o.setName("user")
+            .setDescription("User to check")
+            .setRequired(true))
     )
 
     .addSubcommand(sub =>
       sub.setName("list")
-        .setDescription("List members with remaining time")
+        .setDescription("List all Prime members with remaining time")
     )
 
     .addSubcommand(sub =>
@@ -106,9 +124,7 @@ async function sendBackup() {
   if (!backupWebhookUrl) return;
 
   db.all(`SELECT * FROM members`, async (err, rows) => {
-    const payload = {
-      members: rows
-    };
+    const payload = { members: rows };
 
     try {
       await fetch(backupWebhookUrl, {
@@ -166,7 +182,7 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  /* ===== SET (EXACT DAYS) ===== */
+  /* ===== SET ===== */
   if (sub === "set") {
     const user = interaction.options.getUser("user");
     const days = interaction.options.getInteger("days");
@@ -182,7 +198,6 @@ client.on("interactionCreate", async interaction => {
     await guildMember.roles.add(primeRoleId);
 
     interaction.reply(`🔧 ${user} set to ${days} days remaining.`);
-
     logMessage(`🛠 ${interaction.user.tag} set ${user.tag} to ${days} days`);
   }
 
@@ -229,7 +244,7 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  /* ===== MANUAL BACKUP ===== */
+  /* ===== BACKUP ===== */
   if (sub === "backup") {
     await sendBackup();
     interaction.reply("📦 Backup sent to Google Sheets.");
@@ -255,7 +270,7 @@ cron.schedule("0 0 * * *", async () => {
         db.run(`DELETE FROM members WHERE userId = ?`, [row.userId]);
 
         member.send(
-          "❌ **MTFU Prime Expired**\n\nYour Prime membership has expired.\n\nContact staff to renew."
+          "❌ **MTFU Prime Expired**\n\nYour Prime membership has expired.\nContact staff to renew."
         );
 
         logMessage(`⚠ Prime expired for ${member.user.tag}`);
@@ -263,7 +278,7 @@ cron.schedule("0 0 * * *", async () => {
 
       else if (row.expiry - now <= warningTime && row.warned === 0) {
         member.send(
-          "⚠ **MTFU Prime Expiring Soon**\n\nYour Prime membership expires in 3 days.\n\nPlease contact staff if you wish to renew."
+          "⚠ **MTFU Prime Expiring Soon**\n\nYour Prime membership expires in 3 days.\nPlease contact staff if you wish to renew."
         );
 
         db.run(`UPDATE members SET warned = 1 WHERE userId = ?`, [row.userId]);
