@@ -46,33 +46,20 @@ client.once("ready", async () => {
 
     .addSubcommand(sub =>
       sub.setName("add")
-        .setDescription("Add months to a member")
+        .setDescription("Add months")
         .addUserOption(o =>
           o.setName("user")
             .setDescription("User to give Prime to")
             .setRequired(true))
         .addIntegerOption(o =>
           o.setName("months")
-            .setDescription("Number of months to add")
-            .setRequired(true))
-    )
-
-    .addSubcommand(sub =>
-      sub.setName("set")
-        .setDescription("Set exact remaining days")
-        .addUserOption(o =>
-          o.setName("user")
-            .setDescription("User to modify")
-            .setRequired(true))
-        .addIntegerOption(o =>
-          o.setName("days")
-            .setDescription("Exact number of days remaining")
+            .setDescription("Months to add")
             .setRequired(true))
     )
 
     .addSubcommand(sub =>
       sub.setName("remove")
-        .setDescription("Remove Prime from member")
+        .setDescription("Remove Prime")
         .addUserOption(o =>
           o.setName("user")
             .setDescription("User to remove Prime from")
@@ -80,22 +67,26 @@ client.once("ready", async () => {
     )
 
     .addSubcommand(sub =>
-      sub.setName("check")
-        .setDescription("Check Prime expiry")
+      sub.setName("list")
+        .setDescription("List Prime members with remaining time")
+    )
+
+    .addSubcommand(sub =>
+      sub.setName("testwarning")
+        .setDescription("Send 3-day warning DM immediately")
         .addUserOption(o =>
           o.setName("user")
-            .setDescription("User to check")
+            .setDescription("User to test warning for")
             .setRequired(true))
     )
 
     .addSubcommand(sub =>
-      sub.setName("list")
-        .setDescription("List all Prime members with remaining time")
-    )
-
-    .addSubcommand(sub =>
-      sub.setName("backup")
-        .setDescription("Manually trigger Google Sheets backup")
+      sub.setName("testexpire")
+        .setDescription("Force expire a user immediately")
+        .addUserOption(o =>
+          o.setName("user")
+            .setDescription("User to force expire")
+            .setRequired(true))
     );
 
   const rest = new REST({ version: "10" }).setToken(token);
@@ -114,30 +105,9 @@ function isStaff(member) {
   return member.roles.cache.has(staffRoleId);
 }
 
-async function logMessage(msg) {
-  if (!logChannelId) return;
+async function logMessage(message) {
   const channel = await client.channels.fetch(logChannelId).catch(() => null);
-  if (channel) channel.send(msg);
-}
-
-async function sendBackup() {
-  if (!backupWebhookUrl) return;
-
-  db.all(`SELECT * FROM members`, async (err, rows) => {
-    const payload = { members: rows };
-
-    try {
-      await fetch(backupWebhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      console.log("✅ Backup sent to Google Sheets");
-    } catch (err) {
-      console.error("Backup failed:", err);
-    }
-  });
+  if (channel) channel.send(message);
 }
 
 /* ================= COMMAND HANDLER ================= */
@@ -153,6 +123,8 @@ client.on("interactionCreate", async interaction => {
       content: "❌ Use this command in the Prime commands channel only.",
       ephemeral: true
     });
+
+  await interaction.deferReply();
 
   const sub = interaction.options.getSubcommand();
   const now = Date.now();
@@ -176,29 +148,10 @@ client.on("interactionCreate", async interaction => {
 
       await guildMember.roles.add(primeRoleId);
 
-      interaction.reply(`✅ ${user} now has Prime until <t:${Math.floor(newExpiry/1000)}:F>`);
+      await interaction.editReply(`✅ ${guildMember.displayName} now has Prime until <t:${Math.floor(newExpiry/1000)}:F>`);
 
-      logMessage(`🟢 ${interaction.user.tag} added ${months} month(s) to ${user.tag}`);
+      logMessage(`🟢 ${interaction.member.displayName} added ${months} month(s) to ${guildMember.displayName}`);
     });
-  }
-
-  /* ===== SET ===== */
-  if (sub === "set") {
-    const user = interaction.options.getUser("user");
-    const days = interaction.options.getInteger("days");
-    const guildMember = await interaction.guild.members.fetch(user.id);
-
-    const newExpiry = now + (days * 24 * 60 * 60 * 1000);
-
-    db.run(
-      `INSERT OR REPLACE INTO members (userId, expiry, warned) VALUES (?, ?, 0)`,
-      [user.id, newExpiry]
-    );
-
-    await guildMember.roles.add(primeRoleId);
-
-    interaction.reply(`🔧 ${user} set to ${days} days remaining.`);
-    logMessage(`🛠 ${interaction.user.tag} set ${user.tag} to ${days} days`);
   }
 
   /* ===== REMOVE ===== */
@@ -209,51 +162,61 @@ client.on("interactionCreate", async interaction => {
     db.run(`DELETE FROM members WHERE userId = ?`, [user.id]);
     await guildMember.roles.remove(primeRoleId);
 
-    interaction.reply(`❌ Prime removed from ${user}`);
-    logMessage(`🔴 ${interaction.user.tag} removed Prime from ${user.tag}`);
-  }
+    await interaction.editReply(`❌ Prime removed from ${guildMember.displayName}`);
 
-  /* ===== CHECK ===== */
-  if (sub === "check") {
-    const user = interaction.options.getUser("user");
-
-    db.get(`SELECT * FROM members WHERE userId = ?`, [user.id], (err, row) => {
-      if (!row)
-        return interaction.reply(`❌ ${user} does not have Prime.`);
-
-      const remaining = Math.ceil((row.expiry - now) / (1000 * 60 * 60 * 24));
-
-      interaction.reply(
-        `📅 ${user} expires <t:${Math.floor(row.expiry/1000)}:F>\nRemaining: ${remaining} days`
-      );
-    });
+    logMessage(`🔴 ${interaction.member.displayName} removed Prime from ${guildMember.displayName}`);
   }
 
   /* ===== LIST ===== */
   if (sub === "list") {
-    db.all(`SELECT * FROM members`, (err, rows) => {
+    db.all(`SELECT * FROM members`, async (err, rows) => {
       if (!rows.length)
-        return interaction.reply("No active Prime members.");
+        return interaction.editReply("No active Prime members.");
 
       const list = rows.map(r => {
         const remaining = Math.ceil((r.expiry - now) / (1000 * 60 * 60 * 24));
         return `<@${r.userId}> — ${remaining} days remaining`;
       }).join("\n");
 
-      interaction.reply(`📜 **Prime Members:**\n${list}`);
+      await interaction.editReply(`📜 **Prime Members:**\n${list}`);
     });
   }
 
-  /* ===== BACKUP ===== */
-  if (sub === "backup") {
-    await sendBackup();
-    interaction.reply("📦 Backup sent to Google Sheets.");
+  /* ===== TEST WARNING ===== */
+  if (sub === "testwarning") {
+    const user = interaction.options.getUser("user");
+    const guildMember = await interaction.guild.members.fetch(user.id);
+
+    await guildMember.send(
+      "⚠ **MTFU Prime Expiring Soon (TEST)**\n\nYour Prime membership expires in 3 days.\nPlease contact staff if you wish to renew."
+    );
+
+    await interaction.editReply("📩 3-day warning test DM sent.");
+
+    logMessage(`🧪 ${interaction.member.displayName} triggered test warning for ${guildMember.displayName}`);
+  }
+
+  /* ===== TEST EXPIRE ===== */
+  if (sub === "testexpire") {
+    const user = interaction.options.getUser("user");
+    const guildMember = await interaction.guild.members.fetch(user.id);
+
+    db.run(`DELETE FROM members WHERE userId = ?`, [user.id]);
+    await guildMember.roles.remove(primeRoleId);
+
+    await guildMember.send(
+      "❌ **MTFU Prime Expired (TEST)**\n\nYour Prime membership has expired.\nContact staff to renew."
+    );
+
+    await interaction.editReply("⚠ User force-expired for testing.");
+
+    logMessage(`🧪 ${interaction.member.displayName} force-expired ${guildMember.displayName}`);
   }
 });
 
-/* ================= DAILY JOB ================= */
+/* ================= DAILY EXPIRY CHECK (NOON UTC) ================= */
 
-cron.schedule("0 0 * * *", async () => {
+cron.schedule("0 12 * * *", async () => {
   const now = Date.now();
   const warningTime = 3 * 24 * 60 * 60 * 1000;
 
@@ -269,24 +232,18 @@ cron.schedule("0 0 * * *", async () => {
         await member.roles.remove(primeRoleId);
         db.run(`DELETE FROM members WHERE userId = ?`, [row.userId]);
 
-        member.send(
-          "❌ **MTFU Prime Expired**\n\nYour Prime membership has expired.\nContact staff to renew."
-        );
+        member.send("❌ **MTFU Prime Expired**\n\nYour Prime membership has expired.\nContact staff to renew.");
 
-        logMessage(`⚠ Prime expired for ${member.user.tag}`);
+        logMessage(`⚠ Prime expired for ${member.displayName}`);
       }
 
       else if (row.expiry - now <= warningTime && row.warned === 0) {
-        member.send(
-          "⚠ **MTFU Prime Expiring Soon**\n\nYour Prime membership expires in 3 days.\nPlease contact staff if you wish to renew."
-        );
+        member.send("⚠ **MTFU Prime Expiring Soon**\n\nYour Prime membership expires in 3 days.\nPlease contact staff if you wish to renew.");
 
         db.run(`UPDATE members SET warned = 1 WHERE userId = ?`, [row.userId]);
       }
     }
   });
-
-  await sendBackup();
 });
 
 /* ================= LOGIN ================= */
@@ -296,13 +253,6 @@ client.login(token);
 /* ================= EXPRESS SERVER ================= */
 
 const app = express();
-
-app.get("/", (req, res) => {
-  res.send("MTFU Prime Bot running.");
-});
-
+app.get("/", (req, res) => res.send("MTFU Prime Bot running."));
 const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`🌐 Web server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🌐 Web server running on port ${PORT}`));
