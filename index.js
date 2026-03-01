@@ -33,6 +33,9 @@ const client = new Client({
 const db = new sqlite3.Database("./database.db");
 
 db.serialize(() => {
+
+  /* ===== EXISTING TABLES (UNCHANGED) ===== */
+
   db.run(`
     CREATE TABLE IF NOT EXISTS members (
       userId TEXT PRIMARY KEY,
@@ -49,6 +52,39 @@ db.serialize(() => {
       amount INTEGER
     )
   `);
+
+  /* ===== NEW TABLES (STEP 1 ADDITION) ===== */
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS seasons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      createdAt INTEGER,
+      isActive INTEGER DEFAULT 0
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      seasonId INTEGER,
+      name TEXT,
+      createdAt INTEGER
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS points (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId TEXT,
+      seasonId INTEGER,
+      eventId INTEGER,
+      points INTEGER,
+      givenBy TEXT,
+      timestamp INTEGER
+    )
+  `);
+
 });
 
 /* ================= LOGGING ================= */
