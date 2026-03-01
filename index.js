@@ -84,6 +84,15 @@ db.serialize(() => {
       timestamp INTEGER
     )
   `);
+  db.run(`
+  CREATE TABLE IF NOT EXISTS seasons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    createdAt INTEGER,
+    isActive INTEGER DEFAULT 1
+  )
+`);
+  
 
 });
 
@@ -280,11 +289,35 @@ client.once("ready", async () => {
         )
     );
 
+  const seasonCommand = new SlashCommandBuilder()
+    .setName("season")
+    .setDescription("Manage seasons")
+  
+    .addSubcommand(sub =>
+      sub.setName("create")
+        .setDescription("Create a new season")
+        .addStringOption(o =>
+          o.setName("name")
+           .setDescription("Season name")
+           .setRequired(true)
+        )
+    )
+  
+    .addSubcommand(sub =>
+      sub.setName("end")
+        .setDescription("End the active season")
+    )
+  
+    .addSubcommand(sub =>
+      sub.setName("list")
+        .setDescription("List all seasons")
+    );
+
   const rest = new REST({ version: "10" }).setToken(token);
 
   await rest.put(
     Routes.applicationGuildCommands(client.user.id, guildId),
-    { body: [command.toJSON()] }
+    { body: [command.toJSON(), seasonCommand.toJSON()] }
   );
 
   console.log("✅ Slash commands registered");
@@ -533,6 +566,68 @@ client.on("interactionCreate", async interaction => {
     await guildMember.send("❌ **TEST: Prime expired.**");
     await interaction.editReply("⚠ User force expired.");
     await sendBackup();
+  }
+});
+
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+
+  if (interaction.commandName !== "season") return;
+
+  // Permission check
+  if (!interaction.member.roles.cache.has(process.env.SYSTEM_ADMIN_ROLE_ID)) {
+    return interaction.reply({ content: "❌ You do not have permission.", ephemeral: true });
+  }
+
+  await interaction.deferReply();
+
+  const sub = interaction.options.getSubcommand();
+  const now = Date.now();
+
+  // ===== CREATE =====
+  if (sub === "create") {
+    const name = interaction.options.getString("name");
+
+    db.get(`SELECT * FROM seasons WHERE isActive = 1`, (err, row) => {
+      if (row) {
+        return interaction.editReply("❌ There is already an active season. End it first.");
+      }
+
+      db.run(
+        `INSERT INTO seasons (name, createdAt, isActive) VALUES (?, ?, 1)`,
+        [name, now]
+      );
+
+      interaction.editReply(`✅ Season "${name}" created and set active.`);
+    });
+  }
+
+  // ===== END =====
+  if (sub === "end") {
+    db.get(`SELECT * FROM seasons WHERE isActive = 1`, (err, row) => {
+      if (!row) {
+        return interaction.editReply("❌ No active season found.");
+      }
+
+      db.run(`UPDATE seasons SET isActive = 0 WHERE id = ?`, [row.id]);
+
+      interaction.editReply(`🏁 Season "${row.name}" has been ended.`);
+    });
+  }
+
+  // ===== LIST =====
+  if (sub === "list") {
+    db.all(`SELECT * FROM seasons ORDER BY createdAt DESC`, (err, rows) => {
+      if (!rows.length) {
+        return interaction.editReply("No seasons found.");
+      }
+
+      const formatted = rows.map(s =>
+        `${s.isActive ? "🟢" : "⚪"} ${s.name}`
+      ).join("\n");
+
+      interaction.editReply(`📅 Seasons:\n\n${formatted}`);
+    });
   }
 });
 
