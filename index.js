@@ -226,7 +226,19 @@ client.once("ready", async () => {
 
     .addSubcommand(sub =>
       sub.setName("revenue")
-        .setDescription("Show current + next 2 month allocation revenue")
+        .setDescription("View revenue (default: current + next 2 months)")
+        .addStringOption(o =>
+          o.setName("month")
+            .setDescription("Specific month (YYYY-MM)")
+        )
+        .addStringOption(o =>
+          o.setName("from")
+            .setDescription("From month (YYYY-MM)")
+        )
+        .addStringOption(o =>
+          o.setName("to")
+            .setDescription("To month (YYYY-MM)")
+        )
     );
 
   const rest = new REST({ version: "10" }).setToken(token);
