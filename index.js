@@ -101,38 +101,76 @@ async function logMessage(message) {
 async function sendBackup() {
   if (!backupWebhookUrl) return;
 
-  db.all(`SELECT userId, expiry FROM members`, async (err, rows) => {
-    if (err) return console.error(err);
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return;
 
-    const guild = client.guilds.cache.get(guildId);
-    if (!guild) return;
+  try {
+    const members = await new Promise((resolve, reject) => {
+      db.all(`SELECT userId, expiry FROM members`, async (err, rows) => {
+        if (err) return reject(err);
 
-    const enriched = [];
+        const enriched = [];
 
-    for (const row of rows) {
-      const member = await guild.members.fetch(row.userId).catch(() => null);
+        for (const row of rows) {
+          const member = await guild.members.fetch(row.userId).catch(() => null);
 
-      enriched.push({
-        userId: row.userId,
-        nickname: member ? member.displayName : "Unknown",
-        expiry: row.expiry
+          enriched.push({
+            userId: row.userId,
+            nickname: member ? member.displayName : "Unknown",
+            expiry: row.expiry
+          });
+        }
+
+        resolve(enriched);
       });
-    }
+    });
 
-    try {
-      await fetch(backupWebhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ members: enriched })
+    const allocations = await new Promise((resolve, reject) => {
+      db.all(`SELECT year, month, amount FROM allocations`, (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows || []);
       });
+    });
 
-      console.log("✅ Backup synced to Google Sheets");
-    } catch (err) {
-      console.error("Backup failed:", err);
-    }
-  });
+    const seasons = await new Promise((resolve) => {
+      db.all(`SELECT * FROM seasons`, (err, rows) => {
+        if (err) return resolve([]);
+        resolve(rows || []);
+      });
+    });
+
+    const events = await new Promise((resolve) => {
+      db.all(`SELECT * FROM events`, (err, rows) => {
+        if (err) return resolve([]);
+        resolve(rows || []);
+      });
+    });
+
+    const points = await new Promise((resolve) => {
+      db.all(`SELECT * FROM points`, (err, rows) => {
+        if (err) return resolve([]);
+        resolve(rows || []);
+      });
+    });
+
+    await fetch(backupWebhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        members,
+        allocations,
+        seasons,
+        events,
+        points
+      })
+    });
+
+    console.log("✅ Full backup synced to Google Sheets");
+
+  } catch (err) {
+    console.error("Backup failed:", err);
+  }
 }
-
 
 /* ================= RESTORE ================= */
 
