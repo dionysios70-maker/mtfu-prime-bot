@@ -84,8 +84,6 @@ db.serialize(() => {
       timestamp INTEGER
     )
   `);
-  )
-`);
   
 
 });
