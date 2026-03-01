@@ -344,7 +344,7 @@ if (interaction.commandName === "season") {
         `INSERT INTO seasons (name, createdAt, isActive) VALUES (?, ?, 1)`,
         [name, now]
       );
-      await sendBackup();
+      sendBackup();
       interaction.editReply(`✅ Season "${name}" created and set active.`);
     });
   }
@@ -356,7 +356,7 @@ if (interaction.commandName === "season") {
       }
 
       db.run(`UPDATE seasons SET isActive = 0 WHERE id = ?`, [row.id]);
-      await sendBackup();
+      sendBackup();
       interaction.editReply(`🏁 Season "${row.name}" ended.`);
     });
   }
