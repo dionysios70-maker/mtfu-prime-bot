@@ -277,9 +277,18 @@ client.on("interactionCreate", async interaction => {
 
       await guildMember.roles.add(primeRoleId);
 
-      // ALLOCATIONS
+      // ALLOCATIONS (Calendar Month Based)
+      const paymentDate = new Date(); // when payment confirmed
+
       for (let i = 0; i < months; i++) {
-        const allocationDate = new Date(baseExpiry + (i * THIRTY_DAYS));
+        const allocationDate = new Date(
+          Date.UTC(
+            paymentDate.getUTCFullYear(),
+            paymentDate.getUTCMonth() + i,
+            1
+          )
+        );
+
         const year = allocationDate.getUTCFullYear();
         const month = allocationDate.getUTCMonth() + 1;
 
@@ -288,6 +297,9 @@ client.on("interactionCreate", async interaction => {
           [year, month, PRICE_PER_MONTH]
         );
       }
+          
+      
+      
 
       await interaction.editReply(
         `✅ ${guildMember.displayName} updated until <t:${Math.floor(newExpiry/1000)}:F>`
@@ -303,49 +315,65 @@ client.on("interactionCreate", async interaction => {
 
   /* ===== REVENUE ===== */
   if (sub === "revenue") {
-    const monthsToShow = [0, 1, 2].map(offset => {
-      const d = new Date(now + offset * THIRTY_DAYS);
-      return {
-        year: d.getUTCFullYear(),
-        month: d.getUTCMonth() + 1
-      };
-    });
 
-    const results = [];
-
-    for (const m of monthsToShow) {
-      await new Promise(resolve => {
-        db.get(
-          `SELECT SUM(amount) as total FROM allocations WHERE year = ? AND month = ?`,
-          [m.year, m.month],
-          (err, row) => {
-            results.push({
-              label: `${m.month}/${m.year}`,
-              total: row?.total || 0
-            });
-            resolve();
-          }
-        );
-      });
+    const monthInput = interaction.options.getString("month");
+    const fromInput = interaction.options.getString("from");
+    const toInput = interaction.options.getString("to");
+  
+    let conditions = [];
+    let params = [];
+  
+    if (monthInput) {
+      const [year, month] = monthInput.split("-").map(Number);
+      conditions.push("year = ? AND month = ?");
+      params.push(year, month);
     }
-
-    const formatted = results.map(r =>
-      `${r.label} → ${r.total.toLocaleString()} GP`
-    ).join("\n");
-
-    await interaction.editReply(`📊 Allocation Revenue:\n\n${formatted}`);
+  
+    if (fromInput && toInput) {
+      const [fromYear, fromMonth] = fromInput.split("-").map(Number);
+      const [toYear, toMonth] = toInput.split("-").map(Number);
+  
+      conditions.push(
+        `(year > ? OR (year = ? AND month >= ?)) AND
+         (year < ? OR (year = ? AND month <= ?))`
+      );
+  
+      params.push(
+        fromYear, fromYear, fromMonth,
+        toYear, toYear, toMonth
+      );
+    }
+  
+    let query = `SELECT year, month, SUM(amount) as total FROM allocations`;
+  
+    if (conditions.length)
+      query += " WHERE " + conditions.join(" AND ");
+  
+    query += " GROUP BY year, month ORDER BY year, month";
+  
+    db.all(query, params, async (err, rows) => {
+  
+      if (!rows.length)
+        return interaction.editReply("No revenue data found.");
+  
+      const formatted = rows.map(r =>
+        `${r.month}/${r.year} → ${Number(r.total).toLocaleString()} GP`
+      ).join("\n");
+  
+      await interaction.editReply(`📊 Allocation Revenue:\n\n${formatted}`);
+    });
   }
-
-  /* ===== (ALL OTHER ORIGINAL COMMANDS REMAIN UNCHANGED BELOW) ===== */
-
-  if (sub === "set") {
-    const days = interaction.options.getInteger("days");
-    const newExpiry = now + days * 24 * 60 * 60 * 1000;
-
-    db.run(
-      `INSERT OR REPLACE INTO members (userId, expiry, warned) VALUES (?, ?, 0)`,
-      [user.id, newExpiry]
-    );
+  
+    /* ===== (ALL OTHER ORIGINAL COMMANDS REMAIN UNCHANGED BELOW) ===== */
+  
+    if (sub === "set") {
+      const days = interaction.options.getInteger("days");
+      const newExpiry = now + days * 24 * 60 * 60 * 1000;
+  
+      db.run(
+        `INSERT OR REPLACE INTO members (userId, expiry, warned) VALUES (?, ?, 0)`,
+        [user.id, newExpiry]
+      );
 
     await guildMember.roles.add(primeRoleId);
 
