@@ -323,13 +323,15 @@ client.on("interactionCreate", async interaction => {
     let conditions = [];
     let params = [];
   
+    /* ================= FILTERED MODES ================= */
+  
     if (monthInput) {
       const [year, month] = monthInput.split("-").map(Number);
       conditions.push("year = ? AND month = ?");
       params.push(year, month);
     }
   
-    if (fromInput && toInput) {
+    else if (fromInput && toInput) {
       const [fromYear, fromMonth] = fromInput.split("-").map(Number);
       const [toYear, toMonth] = toInput.split("-").map(Number);
   
@@ -343,6 +345,53 @@ client.on("interactionCreate", async interaction => {
         toYear, toYear, toMonth
       );
     }
+  
+    /* ================= DEFAULT MODE (B OPTION) ================= */
+  
+    else {
+      const now = new Date();
+  
+      const monthsToShow = [];
+  
+      for (let i = 0; i < 3; i++) {
+        const d = new Date(Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth() + i,
+          1
+        ));
+  
+        monthsToShow.push({
+          year: d.getUTCFullYear(),
+          month: d.getUTCMonth() + 1
+        });
+      }
+  
+      const results = [];
+  
+      for (const m of monthsToShow) {
+        await new Promise(resolve => {
+          db.get(
+            `SELECT SUM(amount) as total FROM allocations WHERE year = ? AND month = ?`,
+            [m.year, m.month],
+            (err, row) => {
+              results.push({
+                label: `${m.month}/${m.year}`,
+                total: row?.total || 0
+              });
+              resolve();
+            }
+          );
+        });
+      }
+  
+      const formatted = results.map(r =>
+        `${r.label} → ${Number(r.total).toLocaleString()} GP`
+      ).join("\n");
+  
+      return interaction.editReply(`📊 Allocation Revenue:\n\n${formatted}`);
+    }
+  
+    /* ================= FILTERED QUERY ================= */
   
     let query = `SELECT year, month, SUM(amount) as total FROM allocations`;
   
