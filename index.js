@@ -328,6 +328,63 @@ client.once("ready", async () => {
 client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
+// ================= SEASON COMMAND =================
+if (interaction.commandName === "season") {
+
+  if (!interaction.member.roles.cache.has(process.env.SYSTEM_ADMIN_ROLE_ID)) {
+    return interaction.reply({ content: "❌ You do not have permission.", ephemeral: true });
+  }
+
+  await interaction.deferReply();
+
+  const sub = interaction.options.getSubcommand();
+  const now = Date.now();
+
+  if (sub === "create") {
+    const name = interaction.options.getString("name");
+
+    db.get(`SELECT * FROM seasons WHERE isActive = 1`, (err, row) => {
+      if (row) {
+        return interaction.editReply("❌ There is already an active season. End it first.");
+      }
+
+      db.run(
+        `INSERT INTO seasons (name, createdAt, isActive) VALUES (?, ?, 1)`,
+        [name, now]
+      );
+
+      interaction.editReply(`✅ Season "${name}" created and set active.`);
+    });
+  }
+
+  if (sub === "end") {
+    db.get(`SELECT * FROM seasons WHERE isActive = 1`, (err, row) => {
+      if (!row) {
+        return interaction.editReply("❌ No active season found.");
+      }
+
+      db.run(`UPDATE seasons SET isActive = 0 WHERE id = ?`, [row.id]);
+
+      interaction.editReply(`🏁 Season "${row.name}" has been ended.`);
+    });
+  }
+
+  if (sub === "list") {
+    db.all(`SELECT * FROM seasons ORDER BY createdAt DESC`, (err, rows) => {
+      if (!rows.length) {
+        return interaction.editReply("No seasons found.");
+      }
+
+      const formatted = rows.map(s =>
+        `${s.isActive ? "🟢" : "⚪"} ${s.name}`
+      ).join("\n");
+
+      interaction.editReply(`📅 Seasons:\n\n${formatted}`);
+    });
+  }
+
+  return;
+}
   if (!interaction.member.roles.cache.has(staffRoleId))
     return interaction.reply({ content: "❌ Staff only.", ephemeral: true });
 
@@ -568,52 +625,6 @@ client.on("interactionCreate", async interaction => {
     await sendBackup();
   }
 });
-
-client.on("interactionCreate", async interaction => {
-  if (!interaction.isChatInputCommand()) return;
-
-  if (interaction.commandName !== "season") return;
-
-  // Permission check
-  if (!interaction.member.roles.cache.has(process.env.SYSTEM_ADMIN_ROLE_ID)) {
-    return interaction.reply({ content: "❌ You do not have permission.", ephemeral: true });
-  }
-
-  await interaction.deferReply();
-
-  const sub = interaction.options.getSubcommand();
-  const now = Date.now();
-
-  // ===== CREATE =====
-  if (sub === "create") {
-    const name = interaction.options.getString("name");
-
-    db.get(`SELECT * FROM seasons WHERE isActive = 1`, (err, row) => {
-      if (row) {
-        return interaction.editReply("❌ There is already an active season. End it first.");
-      }
-
-      db.run(
-        `INSERT INTO seasons (name, createdAt, isActive) VALUES (?, ?, 1)`,
-        [name, now]
-      );
-
-      interaction.editReply(`✅ Season "${name}" created and set active.`);
-    });
-  }
-
-  // ===== END =====
-  if (sub === "end") {
-    db.get(`SELECT * FROM seasons WHERE isActive = 1`, (err, row) => {
-      if (!row) {
-        return interaction.editReply("❌ No active season found.");
-      }
-
-      db.run(`UPDATE seasons SET isActive = 0 WHERE id = ?`, [row.id]);
-
-      interaction.editReply(`🏁 Season "${row.name}" has been ended.`);
-    });
-  }
 
   // ===== LIST =====
   if (sub === "list") {
