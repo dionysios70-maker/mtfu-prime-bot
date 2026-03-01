@@ -84,12 +84,6 @@ db.serialize(() => {
       timestamp INTEGER
     )
   `);
-  db.run(`
-  CREATE TABLE IF NOT EXISTS seasons (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    createdAt INTEGER,
-    isActive INTEGER DEFAULT 1
   )
 `);
   
@@ -369,19 +363,6 @@ if (interaction.commandName === "season") {
     });
   }
 
-  if (sub === "list") {
-    db.all(`SELECT * FROM seasons ORDER BY createdAt DESC`, (err, rows) => {
-      if (!rows.length) {
-        return interaction.editReply("No seasons found.");
-      }
-
-      const formatted = rows.map(s =>
-        `${s.isActive ? "🟢" : "⚪"} ${s.name}`
-      ).join("\n");
-
-      interaction.editReply(`📅 Seasons:\n\n${formatted}`);
-    });
-  }
 
   return;
 }
@@ -626,21 +607,6 @@ if (interaction.commandName === "season") {
   }
 });
 
-  // ===== LIST =====
-  if (sub === "list") {
-    db.all(`SELECT * FROM seasons ORDER BY createdAt DESC`, (err, rows) => {
-      if (!rows.length) {
-        return interaction.editReply("No seasons found.");
-      }
-
-      const formatted = rows.map(s =>
-        `${s.isActive ? "🟢" : "⚪"} ${s.name}`
-      ).join("\n");
-
-      interaction.editReply(`📅 Seasons:\n\n${formatted}`);
-    });
-  }
-});
 
 /* ================= DAILY CHECK ================= */
 
