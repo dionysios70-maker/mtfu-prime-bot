@@ -304,12 +304,79 @@ client.once("ready", async () => {
       sub.setName("list")
         .setDescription("List all seasons")
     );
+  
+  const eventCommand = new SlashCommandBuilder()
+    .setName("event")
+    .setDescription("Manage season events")
+  
+    .addSubcommand(sub =>
+      sub.setName("create")
+        .setDescription("Create event in active season")
+        .addStringOption(o =>
+          o.setName("name")
+            .setDescription("Event name")
+            .setRequired(true)
+        )
+    )
+  
+    .addSubcommand(sub =>
+      sub.setName("list")
+        .setDescription("List events in active season")
+  );
 
+  const pointsCommand = new SlashCommandBuilder()
+    .setName("points")
+    .setDescription("Manage event points")
+  
+    .addSubcommand(sub =>
+      sub.setName("add")
+        .setDescription("Add points to a user")
+        .addUserOption(o =>
+          o.setName("user")
+            .setDescription("User")
+            .setRequired(true)
+        )
+        .addIntegerOption(o =>
+          o.setName("amount")
+            .setDescription("Points amount")
+            .setRequired(true)
+        )
+        .addStringOption(o =>
+          o.setName("event")
+            .setDescription("Event name")
+            .setRequired(true)
+        )
+    )
+  
+    .addSubcommand(sub =>
+      sub.setName("remove")
+        .setDescription("Remove points from user")
+        .addUserOption(o =>
+          o.setName("user")
+            .setDescription("User")
+            .setRequired(true)
+        )
+        .addIntegerOption(o =>
+          o.setName("amount")
+            .setDescription("Points to remove")
+            .setRequired(true)
+        )
+        .addStringOption(o =>
+          o.setName("event")
+            .setDescription("Event name")
+            .setRequired(true)
+        )
+    );
   const rest = new REST({ version: "10" }).setToken(token);
 
   await rest.put(
     Routes.applicationGuildCommands(client.user.id, guildId),
-    { body: [command.toJSON(), seasonCommand.toJSON()] }
+    { body: [
+        command.toJSON(),
+        seasonCommand.toJSON(),
+        eventCommand.toJSON(),
+        pointsCommand.toJSON()
+    ] }
   );
 
   console.log("✅ Slash commands registered");
@@ -377,6 +444,105 @@ if (interaction.commandName === "season") {
 
   return;
 }
+  
+if (interaction.commandName === "event") {
+
+  await interaction.deferReply();
+
+  if (!interaction.member.roles.cache.has(process.env.SYSTEM_ADMIN_ROLE_ID)) {
+    return interaction.editReply("❌ No permission.");
+  }
+
+  const sub = interaction.options.getSubcommand();
+
+  db.get(`SELECT * FROM seasons WHERE isActive = 1`, (err, season) => {
+    if (!season) {
+      return interaction.editReply("❌ No active season.");
+    }
+
+    if (sub === "create") {
+      const name = interaction.options.getString("name");
+
+      db.run(
+        `INSERT INTO events (seasonId, name, createdAt) VALUES (?, ?, ?)`,
+        [season.id, name, Date.now()]
+      );
+
+      sendBackup();
+      return interaction.editReply(`✅ Event "${name}" created.`);
+    }
+
+    if (sub === "list") {
+      db.all(
+        `SELECT * FROM events WHERE seasonId = ? ORDER BY createdAt`,
+        [season.id],
+        (err, rows) => {
+
+          if (!rows.length)
+            return interaction.editReply("No events yet.");
+
+          const list = rows.map(e => `• ${e.name}`).join("\n");
+
+          return interaction.editReply(`📅 Events:\n\n${list}`);
+        }
+      );
+    }
+
+  });
+
+  return;
+}
+if (interaction.commandName === "points") {
+
+  await interaction.deferReply();
+
+  if (!interaction.member.roles.cache.has(process.env.SYSTEM_ADMIN_ROLE_ID)) {
+    return interaction.editReply("❌ No permission.");
+  }
+
+  const sub = interaction.options.getSubcommand();
+  const user = interaction.options.getUser("user");
+  const amount = interaction.options.getInteger("amount");
+  const eventName = interaction.options.getString("event");
+
+  db.get(`SELECT * FROM seasons WHERE isActive = 1`, (err, season) => {
+    if (!season)
+      return interaction.editReply("❌ No active season.");
+
+    db.get(
+      `SELECT * FROM events WHERE seasonId = ? AND name = ?`,
+      [season.id, eventName],
+      (err, event) => {
+
+        if (!event)
+          return interaction.editReply("❌ Event not found.");
+
+        const pointsValue = sub === "remove" ? -amount : amount;
+
+        db.run(
+          `INSERT INTO points (userId, seasonId, eventId, points, givenBy, timestamp)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            user.id,
+            season.id,
+            event.id,
+            pointsValue,
+            interaction.user.id,
+            Date.now()
+          ]
+        );
+
+        sendBackup();
+
+        interaction.editReply(
+          `✅ ${amount} points ${sub === "remove" ? "removed from" : "added to"} ${user.username}`
+        );
+      }
+    );
+  });
+
+  return;
+} 
   if (!interaction.member.roles.cache.has(staffRoleId))
     return interaction.reply({ content: "❌ Staff only.", ephemeral: true });
 
