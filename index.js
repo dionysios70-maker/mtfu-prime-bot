@@ -367,6 +367,25 @@ client.once("ready", async () => {
             .setRequired(true)
         )
     );
+
+  const leaderboardCommand = new SlashCommandBuilder()
+    .setName("leaderboard")
+    .setDescription("View competition leaderboard")
+  
+    .addSubcommand(sub =>
+      sub.setName("season")
+        .setDescription("View season leaderboard")
+    )
+  
+    .addSubcommand(sub =>
+      sub.setName("event")
+        .setDescription("View event leaderboard")
+        .addStringOption(o =>
+          o.setName("event")
+            .setDescription("Event name")
+            .setRequired(true)
+        )
+    );
   const rest = new REST({ version: "10" }).setToken(token);
 
   await rest.put(
@@ -375,7 +394,8 @@ client.once("ready", async () => {
         command.toJSON(),
         seasonCommand.toJSON(),
         eventCommand.toJSON(),
-        pointsCommand.toJSON()
+        pointsCommand.toJSON(),
+        leaderboardCommand.toJSON()
     ] }
   );
 
@@ -541,6 +561,110 @@ if (interaction.commandName === "points") {
     );
   });
 
+  
+if (interaction.commandName === "leaderboard") {
+
+  await interaction.deferReply();
+
+  const sub = interaction.options.getSubcommand();
+
+  db.get(`SELECT * FROM seasons WHERE isActive = 1`, (err, season) => {
+
+    if (!season)
+      return interaction.editReply("❌ No active season.");
+
+    if (sub === "season") {
+
+      db.all(
+        `SELECT userId, SUM(points) as total
+         FROM points
+         WHERE seasonId = ?
+         GROUP BY userId
+         ORDER BY total DESC`,
+        [season.id],
+        async (err, rows) => {
+
+          if (!rows.length)
+            return interaction.editReply("No points recorded.");
+
+          const guild = interaction.guild;
+
+          const lines = [];
+
+          for (let i = 0; i < rows.length; i++) {
+
+            const member = await guild.members.fetch(rows[i].userId).catch(() => null);
+
+            const name = member ? member.displayName : "Unknown";
+
+            const hasPrime = member?.roles.cache.has(primeRoleId);
+
+            lines.push(
+              `${i+1}. ${name} — ${rows[i].total} pts ${hasPrime ? "" : "⚪"}`
+            );
+          }
+
+          return interaction.editReply(
+            `🏆 **Season Leaderboard**\n\n${lines.join("\n")}`
+          );
+        }
+      );
+    }
+
+    if (sub === "event") {
+
+      const eventName = interaction.options.getString("event");
+
+      db.get(
+        `SELECT * FROM events WHERE seasonId = ? AND name = ?`,
+        [season.id, eventName],
+        (err, event) => {
+
+          if (!event)
+            return interaction.editReply("❌ Event not found.");
+
+          db.all(
+            `SELECT userId, SUM(points) as total
+             FROM points
+             WHERE eventId = ?
+             GROUP BY userId
+             ORDER BY total DESC`,
+            [event.id],
+            async (err, rows) => {
+
+              if (!rows.length)
+                return interaction.editReply("No points recorded.");
+
+              const guild = interaction.guild;
+
+              const lines = [];
+
+              for (let i = 0; i < rows.length; i++) {
+
+                const member = await guild.members.fetch(rows[i].userId).catch(() => null);
+
+                const name = member ? member.displayName : "Unknown";
+
+                const hasPrime = member?.roles.cache.has(primeRoleId);
+
+                lines.push(
+                  `${i+1}. ${name} — ${rows[i].total} pts ${hasPrime ? "" : "⚪"}`
+                );
+              }
+
+              return interaction.editReply(
+                `🏆 **${eventName} Leaderboard**\n\n${lines.join("\n")}`
+              );
+            }
+          );
+        }
+      );
+    }
+
+  });
+
+  return;
+}
   return;
 } 
   if (!interaction.member.roles.cache.has(staffRoleId))
