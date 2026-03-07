@@ -239,7 +239,7 @@ client.once("ready", async () => {
     await restoreFromBackup();
   }
 
- });
+
   
 /* ================= Command Registration ================= */
 
