@@ -222,9 +222,9 @@ async function restoreFromBackup() {
             `INSERT INTO allocations (year, month, amount)
              VALUES (?, ?, ?)`,
             [a.year, a.month, a.amount]
-          );
-        }
-      }
+          )
+        );
+    
 
     
     if (data.seasons) {
@@ -234,9 +234,8 @@ async function restoreFromBackup() {
             `INSERT INTO seasons (id, name, createdAt, isActive)
              VALUES (?, ?, ?, ?)`,
             [s.id, s.name, s.createdAt, s.isActive]
-          );
-        }
-      }
+           )
+        );
 
     
     if (data.events) {
@@ -246,9 +245,8 @@ async function restoreFromBackup() {
             `INSERT INTO events (id, seasonId, name, createdAt)
              VALUES (?, ?, ?, ?)`,
             [e.id, e.seasonId, e.name, e.createdAt]
-          );
-        }
-      }
+           )
+        );
 
     if (data.points) {
       for (const p of data.points) {
@@ -263,10 +261,10 @@ async function restoreFromBackup() {
               p.points,
               p.givenBy,
               p.timestamp
-            ]
-          );
-        }
-      }
+            ],
+            res
+           )
+        );
         
         
 
