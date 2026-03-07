@@ -568,7 +568,7 @@ if (interaction.commandName === "leaderboard") {
 
   const sub = interaction.options.getSubcommand();
 
-  db.get(`SELECT * FROM seasons WHERE isActive = 1`, (err, season) => {
+  db.get(`SELECT * FROM seasons WHERE isActive = 1`, async (err, season) => {
 
     if (!season)
       return interaction.editReply("❌ No active season.");
@@ -584,12 +584,12 @@ if (interaction.commandName === "leaderboard") {
         [season.id],
         async (err, rows) => {
 
-          if (!rows.length)
+          if (!rows || !rows.length)
             return interaction.editReply("No points recorded.");
 
           const guild = interaction.guild;
 
-          const lines = [];
+          let text = "🏆 **Season Leaderboard**\n\n";
 
           for (let i = 0; i < rows.length; i++) {
 
@@ -599,14 +599,11 @@ if (interaction.commandName === "leaderboard") {
 
             const hasPrime = member?.roles.cache.has(primeRoleId);
 
-            lines.push(
-              `${i+1}. ${name} — ${rows[i].total} pts ${hasPrime ? "" : "⚪"}`
-            );
+            text += `${i + 1}. ${name} — ${rows[i].total} pts ${hasPrime ? "" : "⚪"}\n`;
+
           }
 
-          return interaction.editReply(
-            `🏆 **Season Leaderboard**\n\n${lines.join("\n")}`
-          );
+          return interaction.editReply(text);
         }
       );
     }
@@ -632,12 +629,12 @@ if (interaction.commandName === "leaderboard") {
             [event.id],
             async (err, rows) => {
 
-              if (!rows.length)
+              if (!rows || !rows.length)
                 return interaction.editReply("No points recorded.");
 
               const guild = interaction.guild;
 
-              const lines = [];
+              let text = `🏆 **${eventName} Leaderboard**\n\n`;
 
               for (let i = 0; i < rows.length; i++) {
 
@@ -647,14 +644,11 @@ if (interaction.commandName === "leaderboard") {
 
                 const hasPrime = member?.roles.cache.has(primeRoleId);
 
-                lines.push(
-                  `${i+1}. ${name} — ${rows[i].total} pts ${hasPrime ? "" : "⚪"}`
-                );
+                text += `${i + 1}. ${name} — ${rows[i].total} pts ${hasPrime ? "" : "⚪"}\n`;
+
               }
 
-              return interaction.editReply(
-                `🏆 **${eventName} Leaderboard**\n\n${lines.join("\n")}`
-              );
+              return interaction.editReply(text);
             }
           );
         }
