@@ -403,6 +403,16 @@ client.once("ready", async () => {
             .setRequired(true)
         )
     )
+
+    .addSubcommand(sub =>
+      sub.setName("close")
+        .setDescription("Close an event and show results")
+        .addStringOption(o =>
+          o.setName("event")
+            .setDescription("Event name")
+            .setRequired(true)
+        )
+    )
   
     .addSubcommand(sub =>
       sub.setName("list")
@@ -595,7 +605,52 @@ if (interaction.commandName === "event") {
       );
     }
 
-  });
+    if (sub === "close") {
+
+      const eventName = interaction.options.getString("event");
+    
+      db.get(
+        `SELECT * FROM events WHERE seasonId = ? AND name = ?`,
+        [season.id, eventName],
+        (err, event) => {
+    
+          if (!event)
+            return interaction.editReply("❌ Event not found.");
+    
+          db.all(
+            `SELECT userId, SUM(points) as total
+             FROM points
+             WHERE eventId = ?
+             GROUP BY userId
+             ORDER BY total DESC`,
+            [event.id],
+            async (err, rows) => {
+    
+              if (!rows || !rows.length)
+                return interaction.editReply("No points recorded.");
+    
+              let text = `🏁 **${eventName} Final Results**\n\n`;
+    
+              for (let i = 0; i < rows.length; i++) {
+    
+                const member = await interaction.guild.members
+                  .fetch(rows[i].userId)
+                  .catch(()=>null);
+    
+                const name = member ? member.displayName : "Unknown";
+    
+                text += `${i+1}. ${name} — ${rows[i].total} pts\n`;
+              }
+    
+              await interaction.editReply(text);
+    
+              sendBackup();
+            }
+          );
+    
+        }
+      );
+    }
 
   return;
 }
