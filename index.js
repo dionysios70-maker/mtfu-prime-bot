@@ -9,8 +9,10 @@ import {
 import sqlite3 from "sqlite3";
 import cron from "node-cron";
 
-/* ================= ENV ================= */
 
+
+/* ================= ENV ================= */
+let systemReady = false;
 const token = process.env.BOT_TOKEN;
 const guildId = process.env.GUILD_ID;
 const primeRoleId = process.env.PRIME_ROLE_ID;
@@ -100,6 +102,8 @@ async function logMessage(message) {
 /* ================= BACKUP (WITH NICKNAMES) ================= */
 
 async function sendBackup() {
+
+  if (!systemReady) return;
 
   if (!backupWebhookUrl) return;
 
@@ -194,6 +198,12 @@ async function sendBackup() {
 /* ================= RESTORE ================= */
 
 async function restoreFromBackup() {
+
+  await new Promise(res => db.run("DELETE FROM members", res));
+  await new Promise(res => db.run("DELETE FROM allocations", res));
+  await new Promise(res => db.run("DELETE FROM seasons", res));
+  await new Promise(res => db.run("DELETE FROM events", res));
+  await new Promise(res => db.run("DELETE FROM points", res));
   if (!backupWebhookUrl) return;
 
   try {
@@ -285,23 +295,21 @@ client.once("ready", async () => {
 
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  const row = await new Promise(resolve => {
-    db.get(`SELECT COUNT(*) as count FROM members`, (err, r) => resolve(r));
-  });
+  console.log("🔄 Rebuilding database from Google Sheets...");
 
-  if (row.count === 0) {
-    console.log("🔄 Restoring from Google Sheets...");
-    await restoreFromBackup();
+  await restoreFromBackup();
 
-    await new Promise(r => setTimeout(r, 3000));
+  // wait for SQLite writes to finish
+  await new Promise(r => setTimeout(r, 3000));
 
-    await restoreFromBackup();
-  }
+  systemReady = true;
 
+  console.log("✅ Database ready");
+
+});
 
   
 /* ================= Command Registration ================= */
-
 
   const command = new SlashCommandBuilder()
     .setName("prime")
@@ -501,7 +509,13 @@ client.once("ready", async () => {
 
 client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand()) return;
-
+  
+if (!systemReady) {
+  return interaction.reply({
+    content: "Bot is still starting, please wait a few seconds.",
+    ephemeral: true
+  });
+}
 
   
 // ================= SEASON COMMAND =================
