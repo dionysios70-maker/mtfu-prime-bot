@@ -222,7 +222,11 @@ client.once("ready", async () => {
     await restoreFromBackup();
   }
 
-});
+  await sendBackup();
+
+  
+/* ================= Command Registration ================= */
+
 
   const command = new SlashCommandBuilder()
     .setName("prime")
@@ -672,10 +676,10 @@ if (interaction.commandName === "leaderboard") {
 }
   
   if (!interaction.member.roles.cache.has(staffRoleId))
-    return interaction.reply({ content: "❌ Staff only.", ephemeral: true });
+    return interaction.reply({ content: "❌ Staff only.", flags: 64 });
 
   if (interaction.channelId !== commandChannelId)
-    return interaction.reply({ content: "❌ Use Prime commands channel.", ephemeral: true });
+    return interaction.reply({ content: "❌ Use Prime commands channel.", flags: 64 });
 
   await interaction.deferReply();
 
