@@ -217,52 +217,56 @@ async function restoreFromBackup() {
     
     if (data.allocations) {
       for (const a of data.allocations) {
-        db.run(
-          `INSERT INTO allocations (year, month, amount)
-           VALUES (?, ?, ?)`,
-          [a.year, a.month, a.amount]
-        );
+        await new Promise(res =>
+          db.run(
+            `INSERT INTO allocations (year, month, amount)
+             VALUES (?, ?, ?)`,
+            [a.year, a.month, a.amount]
+          );
+        }
       }
-    }
 
     
     if (data.seasons) {
       for (const s of data.seasons) {
-        db.run(
-          `INSERT INTO seasons (id, name, createdAt, isActive)
-           VALUES (?, ?, ?, ?)`,
-          [s.id, s.name, s.createdAt, s.isActive]
-        );
+        await new Promise(res =>
+          db.run(
+            `INSERT INTO seasons (id, name, createdAt, isActive)
+             VALUES (?, ?, ?, ?)`,
+            [s.id, s.name, s.createdAt, s.isActive]
+          );
+        }
       }
-    }
 
     
     if (data.events) {
       for (const e of data.events) {
-        db.run(
-          `INSERT INTO events (id, seasonId, name, createdAt)
-           VALUES (?, ?, ?, ?)`,
-          [e.id, e.seasonId, e.name, e.createdAt]
-        );
+        await new Promise(res =>
+          db.run(
+            `INSERT INTO events (id, seasonId, name, createdAt)
+             VALUES (?, ?, ?, ?)`,
+            [e.id, e.seasonId, e.name, e.createdAt]
+          );
+        }
       }
-    }
 
     if (data.points) {
       for (const p of data.points) {
-        db.run(
-          `INSERT INTO points (userId, seasonId, eventId, points, givenBy, timestamp)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            p.userId,
-            p.seasonId,
-            p.eventId,
-            p.points,
-            p.givenBy,
-            p.timestamp
-          ]
-        );
+        await new Promise(res =>
+          db.run(
+            `INSERT INTO points (userId, seasonId, eventId, points, givenBy, timestamp)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              p.userId,
+              p.seasonId,
+              p.eventId,
+              p.points,
+              p.givenBy,
+              p.timestamp
+            ]
+          );
+        }
       }
-    }
         
         
 
