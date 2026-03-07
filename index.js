@@ -100,17 +100,25 @@ async function logMessage(message) {
 /* ================= BACKUP (WITH NICKNAMES) ================= */
 
 async function sendBackup() {
-  
-  const memberCount = await new Promise(resolve => {
-    db.get("SELECT COUNT(*) as c FROM members", (err, row) => resolve(row.c));
-  });
-
-  if (memberCount === 0) {
-    console.log("⚠ Backup skipped — database empty");
-    return;
-  }
 
   if (!backupWebhookUrl) return;
+
+  const memberCount = await new Promise(resolve => {
+    db.get("SELECT COUNT(*) as c FROM members", (err, row) => resolve(row?.c || 0));
+  });
+
+  const seasonCount = await new Promise(resolve => {
+    db.get("SELECT COUNT(*) as c FROM seasons", (err, row) => resolve(row?.c || 0));
+  });
+
+  const eventCount = await new Promise(resolve => {
+    db.get("SELECT COUNT(*) as c FROM events", (err, row) => resolve(row?.c || 0));
+  });
+
+  if (memberCount === 0 && seasonCount === 0 && eventCount === 0) {
+    console.log("⚠ Backup cancelled — database appears empty");
+    return;
+  }
 
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return;
@@ -764,7 +772,8 @@ if (interaction.commandName === "leaderboard") {
 
     db.get(`SELECT * FROM members WHERE userId = ?`, [user.id], async (err, row) => {
       const baseExpiry =
-        row && row.expiry > now ? row.expiry : now;
+        row && row.expiry && row.expiry > now ? row.expiry : now;
+        
 
       const newExpiry = baseExpiry + addedTime;
 
