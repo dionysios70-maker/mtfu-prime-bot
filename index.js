@@ -100,6 +100,16 @@ async function logMessage(message) {
 /* ================= BACKUP (WITH NICKNAMES) ================= */
 
 async function sendBackup() {
+  
+  const memberCount = await new Promise(resolve => {
+    db.get("SELECT COUNT(*) as c FROM members", (err, row) => resolve(row.c));
+  });
+
+  if (memberCount === 0) {
+    console.log("⚠ Backup skipped — database empty");
+    return;
+  }
+
   if (!backupWebhookUrl) return;
 
   const guild = client.guilds.cache.get(guildId);
@@ -182,7 +192,10 @@ async function restoreFromBackup() {
     const response = await fetch(backupWebhookUrl);
     const data = await response.json();
 
-    if (!data.members || !data.members.length) return;
+    if (!data.members || data.members.length === 0) {
+      console.log("⚠ Sheet empty — restore cancelled");
+      return;
+    }
 
     console.log("🔄 Restoring from Google Sheets...");
 
@@ -220,10 +233,13 @@ client.once("ready", async () => {
   if (row.count === 0) {
     console.log("🔄 Restoring from Google Sheets...");
     await restoreFromBackup();
+
+    await new Promise(r => setTimeout(r, 3000));
+
+    await restoreFromBackup();
   }
 
-  await sendBackup();
-
+ });
   
 /* ================= Command Registration ================= */
 
