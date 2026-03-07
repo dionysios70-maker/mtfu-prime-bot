@@ -210,13 +210,19 @@ async function restoreFromBackup() {
 /* ================= READY ================= */
 
 client.once("ready", async () => {
+
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  db.get("SELECT COUNT(*) as count FROM members", async (err, row) => {
-    if (row.count === 0) {
-      await restoreFromBackup();
-    }
+  const row = await new Promise(resolve => {
+    db.get(`SELECT COUNT(*) as count FROM members`, (err, r) => resolve(r));
   });
+
+  if (row.count === 0) {
+    console.log("🔄 Restoring from Google Sheets...");
+    await restoreFromBackup();
+  }
+
+});
 
   const command = new SlashCommandBuilder()
     .setName("prime")
@@ -407,6 +413,8 @@ client.once("ready", async () => {
 client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
+
+  
 // ================= SEASON COMMAND =================
 if (interaction.commandName === "season") {
 
@@ -561,6 +569,9 @@ if (interaction.commandName === "points") {
     );
   });
 
+  return;
+}
+
   
 if (interaction.commandName === "leaderboard") {
 
@@ -659,8 +670,7 @@ if (interaction.commandName === "leaderboard") {
 
   return;
 }
-  return;
-} 
+  
   if (!interaction.member.roles.cache.has(staffRoleId))
     return interaction.reply({ content: "❌ Staff only.", ephemeral: true });
 
