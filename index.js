@@ -306,7 +306,23 @@ client.once("ready", async () => {
 
   console.log("✅ Database ready");
 
+  const rest = new REST({ version: "10" }).setToken(token);
+
+  await rest.put(
+    Routes.applicationGuildCommands(client.user.id, guildId),
+    { body: [
+        command.toJSON(),
+        seasonCommand.toJSON(),
+        eventCommand.toJSON(),
+        pointsCommand.toJSON(),
+        leaderboardCommand.toJSON()
+    ] }
+  );
+
+  console.log("✅ Slash commands registered");
+  
 });
+
 
   
 /* ================= Command Registration ================= */
@@ -489,22 +505,7 @@ client.once("ready", async () => {
             .setRequired(true)
         )
     );
-  const rest = new REST({ version: "10" }).setToken(token);
-
-  await rest.put(
-    Routes.applicationGuildCommands(client.user.id, guildId),
-    { body: [
-        command.toJSON(),
-        seasonCommand.toJSON(),
-        eventCommand.toJSON(),
-        pointsCommand.toJSON(),
-        leaderboardCommand.toJSON()
-    ] }
-  );
-
-  console.log("✅ Slash commands registered");
-});
-
+  
 /* ================= COMMAND HANDLER ================= */
 
 client.on("interactionCreate", async interaction => {
@@ -513,7 +514,7 @@ client.on("interactionCreate", async interaction => {
 if (!systemReady) {
   return interaction.reply({
     content: "Bot is still starting, please wait a few seconds.",
-    ephemeral: true
+    flags: 64
   });
 }
 
