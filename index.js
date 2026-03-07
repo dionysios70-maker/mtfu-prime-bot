@@ -653,7 +653,7 @@ if (interaction.commandName === "event") {
     }
 
   return;
-}
+    
 if (interaction.commandName === "points") {
 
   await interaction.deferReply();
