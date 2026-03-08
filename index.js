@@ -37,9 +37,7 @@ const db = new sqlite3.Database("./database.db");
 db.serialize(() => {
 
 
- /* ===== REMOVE LATER===== */
 
-  db.run(`DELETE FROM members WHERE expiry <= 0`);
   /* ===== EXISTING TABLES (UNCHANGED) ===== */
 
   db.run(`
@@ -49,7 +47,10 @@ db.serialize(() => {
       warned INTEGER DEFAULT 0
     )
   `);
+  
+  db.run(`DELETE FROM members WHERE expiry <= 0`);
 
+  
   db.run(`
     CREATE TABLE IF NOT EXISTS allocations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -913,11 +914,17 @@ if (interaction.commandName === "leaderboard") {
 
       const newExpiry = baseExpiry + addedTime;
 
+      if (!Number.isFinite(newExpiry)) {
+        console.log("Invalid expiry calculated");
+        return interaction.editReply("Error calculating expiry.");
+      }
+
       if (!newExpiry || newExpiry <= 0) {
         console.log("❌ Invalid expiry detected, skipping update");
         return;
       }
-
+    await new Promise(resolve => {
+      
       db.get(`SELECT userId FROM members WHERE userId = ?`, [user.id], (err, existing) => {
 
         if (existing) {
@@ -937,6 +944,8 @@ if (interaction.commandName === "leaderboard") {
         }
       
       });
+      
+    });
 
       await guildMember.roles.add(primeRoleId);
 
