@@ -99,6 +99,24 @@ async function logMessage(message) {
   channel.send(message).catch(() => {});
 }
 
+
+let backupQueued = false;
+
+function queueBackup() {
+
+  if (backupQueued) return;
+
+  backupQueued = true;
+
+  setTimeout(async () => {
+
+    backupQueued = false;
+
+    await sendBackup();
+
+  }, 20000); // 20 seconds
+
+}
 /* ================= BACKUP (WITH NICKNAMES) ================= */
 
 async function sendBackup() {
@@ -138,9 +156,9 @@ async function sendBackup() {
           const member = await guild.members.fetch(row.userId).catch(() => null);
 
           enriched.push({
-            userId: row.userId,
+            userId: String(row.userId),
             nickname: member ? member.displayName : "Unknown",
-            expiry: row.expiry
+            expiry: Number(row.expiry)
           });
         }
 
@@ -288,7 +306,7 @@ async function restoreFromBackup() {
       db.run(
         `INSERT OR REPLACE INTO members (userId, expiry, warned)
          VALUES (?, ?, 0)`,
-        [member.userId, member.expiry]
+        [String(member.userId), Number(member.expiry)]
       );
 
       const guild = client.guilds.cache.get(guildId);
@@ -561,7 +579,7 @@ if (interaction.commandName === "season") {
         `INSERT INTO seasons (name, createdAt, isActive) VALUES (?, ?, 1)`,
         [name, now]
       );
-      setTimeout(sendBackup, 2000);
+      queueBackup();
       interaction.editReply(`✅ Season "${name}" created and set active.`);
     });
   }
@@ -573,7 +591,7 @@ if (interaction.commandName === "season") {
       }
 
       db.run(`UPDATE seasons SET isActive = 0 WHERE id = ?`, [row.id]);
-      setTimeout(sendBackup, 2000);
+      queueBackup();
       interaction.editReply(`🏁 Season "${row.name}" ended.`);
     });
   }
@@ -618,7 +636,7 @@ if (interaction.commandName === "event") {
         [season.id, name, Date.now()]
       );
 
-      setTimeout(sendBackup, 2000);
+      queueBackup();
       return interaction.editReply(`✅ Event "${name}" created.`);
     }
 
@@ -677,7 +695,7 @@ if (interaction.commandName === "event") {
     
               await interaction.editReply(text);
     
-              setTimeout(sendBackup, 2000);
+              queueBackup();
             }
           );
     
@@ -730,7 +748,7 @@ if (interaction.commandName === "points") {
           ]
         );
 
-        setTimeout(sendBackup, 2000);
+        queueBackup();
 
         interaction.editReply(
           `✅ ${amount} points ${sub === "remove" ? "removed from" : "added to"} ${user.username}`
@@ -860,10 +878,11 @@ if (interaction.commandName === "leaderboard") {
   if (sub === "add") {
     const months = interaction.options.getInteger("months");
     const addedTime = months * THIRTY_DAYS;
+    const existingExpiry = Number(row?.expiry || 0);
 
     db.get(`SELECT * FROM members WHERE userId = ?`, [user.id], async (err, row) => {
       const baseExpiry =
-        row && row.expiry && row.expiry > now ? row.expiry : now;
+        existingExpiry > now ? existingExpiry : now;
         
 
       const newExpiry = baseExpiry + addedTime;
@@ -907,7 +926,7 @@ if (interaction.commandName === "leaderboard") {
         `🟢 ${interaction.member.displayName} added ${months} month(s) to ${guildMember.displayName}`
       );
 
-      await setTimeout(sendBackup, 2000);
+      queueBackup();
     });
   }
 
@@ -1032,7 +1051,7 @@ if (interaction.commandName === "leaderboard") {
       `🛠 ${interaction.member.displayName} set ${guildMember.displayName} to ${days} days`
     );
 
-    await setTimeout(sendBackup, 2000);
+    queueBackup();
   }
 
   if (sub === "remove") {
@@ -1047,7 +1066,7 @@ if (interaction.commandName === "leaderboard") {
       `🔴 ${interaction.member.displayName} removed Prime from ${guildMember.displayName}`
     );
 
-    await setTimeout(sendBackup, 2000);
+    queueBackup();
   }
 
   if (sub === "list") {
@@ -1067,7 +1086,7 @@ if (interaction.commandName === "leaderboard") {
   }
 
   if (sub === "backup") {
-    await setTimeout(sendBackup, 2000);
+    await sendBackup();
     await interaction.editReply("📦 Backup sent.");
   }
 
@@ -1081,7 +1100,7 @@ if (interaction.commandName === "leaderboard") {
     await guildMember.roles.remove(primeRoleId);
     await guildMember.send("❌ **TEST: Prime expired.**");
     await interaction.editReply("⚠ User force expired.");
-    await setTimeout(sendBackup, 2000);
+    queueBackup();
   }
 });
 
@@ -1113,7 +1132,7 @@ cron.schedule("0 12 * * *", async () => {
     }
   });
 
-  await setTimeout(sendBackup, 2000);
+  queueBackup();
 });
 
 /* ================= EXPRESS ================= */
