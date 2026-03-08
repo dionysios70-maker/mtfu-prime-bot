@@ -11,34 +11,38 @@ const token = process.env.BOT_TOKEN;
 export async function registerPrime(client){
 
   const command = new SlashCommandBuilder()
-  .setName("prime")
-  .setDescription("Manage Prime membership")
+    .setName("prime")
+    .setDescription("Manage Prime membership")
   
-  .addSubcommand(s =>
-    s.setName("add")
-     .setDescription("Add Prime membership months")
-     .addUserOption(o =>
-        o.setName("user")
-         .setDescription("User to add Prime to")
-         .setRequired(true)
-     )
-     .addIntegerOption(o =>
-        o.setName("months")
-         .setDescription("Number of months to add")
-         .setRequired(true)
-     )
-  )
+    .addSubcommand(sub =>
+      sub
+        .setName("add")
+        .setDescription("Add Prime membership to a user")
+        .addUserOption(option =>
+          option
+            .setName("user")
+            .setDescription("User to add Prime membership to")
+            .setRequired(true)
+        )
+        .addIntegerOption(option =>
+          option
+            .setName("months")
+            .setDescription("Number of months to add")
+            .setRequired(true)
+        )
+    )
   
-  .addSubcommand(s =>
-    s.setName("list")
-     .setDescription("List all Prime members")
-  )
+    .addSubcommand(sub =>
+      sub
+        .setName("list")
+        .setDescription("List all active Prime members")
+    )
   
-  .addSubcommand(s =>
-    s.setName("backup")
-     .setDescription("Force a manual backup")
-  );
-
+    .addSubcommand(sub =>
+      sub
+        .setName("backup")
+        .setDescription("Force a manual backup to Google Sheets")
+    );
   const rest = new REST({version:"10"}).setToken(token);
 
   await rest.put(
