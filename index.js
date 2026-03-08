@@ -137,8 +137,8 @@ async function sendBackup() {
     db.get("SELECT COUNT(*) as c FROM events", (err, row) => resolve(row?.c || 0));
   });
 
-  if (memberCount === 0 && seasonCount === 0 && eventCount === 0) {
-    console.log("⚠ Backup cancelled — database appears empty");
+  if (memberCount === 0) {
+    console.log("⚠ Backup blocked — no members in database");
     return;
   }
 
@@ -165,6 +165,11 @@ async function sendBackup() {
         resolve(enriched);
       });
     });
+
+    if (!members || members.length === 0) {
+      console.log("⚠ Backup aborted — member data invalid");
+      return;
+    }
 
     const allocations = await new Promise((resolve, reject) => {
       db.all(`SELECT year, month, amount FROM allocations`, (err, rows) => {
@@ -881,8 +886,10 @@ if (interaction.commandName === "leaderboard") {
     const existingExpiry = Number(row?.expiry || 0);
 
     db.get(`SELECT * FROM members WHERE userId = ?`, [user.id], async (err, row) => {
-      const baseExpiry =
-        existingExpiry > now ? existingExpiry : now;
+
+      const existingExpiry = Number(row?.expiry || 0);
+    
+      const baseExpiry = existingExpiry > now ? existingExpiry : now;
         
 
       const newExpiry = baseExpiry + addedTime;
