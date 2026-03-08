@@ -20,7 +20,7 @@ export async function restoreFromBackup(){
 
   for(const m of data.members){
     await run(
-      "INSERT INTO members (userId,expiry,warned) VALUES (?,?,0)",
+      "INSERT OR REPLACE INTO members (userId,expiry,warned) VALUES (?,?,0)",
       [m.userId,m.expiry]
     );
   }
