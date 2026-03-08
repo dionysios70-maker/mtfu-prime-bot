@@ -153,18 +153,34 @@ async function sendBackup() {
         const enriched = [];
 
         for (const row of rows) {
-          const member = await guild.members.fetch(row.userId).catch(() => null);
 
+          if (!row || !row.userId) continue;
+        
+          const expiry = Number(row.expiry);
+        
+          if (!expiry || expiry <= 0) {
+            console.log("⚠ Skipping invalid expiry for user:", row.userId);
+            continue;
+          }
+        
+          const member = await guild.members.fetch(row.userId).catch(() => null);
+        
           enriched.push({
             userId: String(row.userId),
             nickname: member ? member.displayName : "Unknown",
-            expiry: Number(row.expiry)
+            expiry: expiry
           });
+        
         }
 
         resolve(enriched);
       });
     });
+
+    if (members.length < memberCount) {
+      console.log("⚠ Backup aborted — member count mismatch");
+      return;
+    }
 
     if (!members || members.length === 0) {
       console.log("⚠ Backup aborted — member data invalid");
@@ -895,7 +911,7 @@ if (interaction.commandName === "leaderboard") {
 
       db.run(
         `INSERT OR REPLACE INTO members (userId, expiry, warned) VALUES (?, ?, 0)`,
-        [user.id, newExpiry]
+        [String(user.id), Number(newExpiry)]
       );
 
       await guildMember.roles.add(primeRoleId);
