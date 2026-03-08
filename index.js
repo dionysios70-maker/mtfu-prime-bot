@@ -224,7 +224,8 @@ async function restoreFromBackup() {
           db.run(
             `INSERT INTO allocations (year, month, amount)
              VALUES (?, ?, ?)`,
-            [a.year, a.month, a.amount]
+            [a.year, a.month, a.amount],
+            res
           )
         );
       }
@@ -238,7 +239,8 @@ async function restoreFromBackup() {
           db.run(
             `INSERT INTO seasons (id, name, createdAt, isActive)
              VALUES (?, ?, ?, ?)`,
-            [s.id, s.name, s.createdAt, s.isActive]
+            [s.id, s.name, s.createdAt, s.isActive],
+            res
            )
         );
       }
@@ -251,7 +253,8 @@ async function restoreFromBackup() {
           db.run(
             `INSERT INTO events (id, seasonId, name, createdAt)
              VALUES (?, ?, ?, ?)`,
-            [e.id, e.seasonId, e.name, e.createdAt]
+            [e.id, e.seasonId, e.name, e.createdAt],
+            res
            )
         );
       }
@@ -304,7 +307,7 @@ async function restoreFromBackup() {
 
 /* ================= READY ================= */
 
-client.once("ready", async () => {
+client.once("clientReady", async () => {
 
   console.log(`✅ Logged in as ${client.user.tag}`);
 
