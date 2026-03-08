@@ -883,7 +883,6 @@ if (interaction.commandName === "leaderboard") {
   if (sub === "add") {
     const months = interaction.options.getInteger("months");
     const addedTime = months * THIRTY_DAYS;
-    const existingExpiry = Number(row?.expiry || 0);
 
     db.get(`SELECT * FROM members WHERE userId = ?`, [user.id], async (err, row) => {
 
