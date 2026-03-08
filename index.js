@@ -328,25 +328,33 @@ async function restoreFromBackup() {
     console.log("🔄 Restoring from Google Sheets...");
 
     for (const member of data.members) {
-      db.run(
-        `INSERT OR REPLACE INTO members (userId, expiry, warned)
-         VALUES (?, ?, 0)`,
-        [String(member.userId), Number(member.expiry)]
-      );
-
+      await new Promise(resolve => {
+        db.run(
+          `INSERT INTO members (userId, expiry, warned)
+           VALUES (?, ?, 0)
+           ON CONFLICT(userId)
+           DO UPDATE SET expiry = excluded.expiry, warned = 0`,
+          [String(user.id), Number(newExpiry)],
+          resolve
+        );
+        
+      });
+  
       const guild = client.guilds.cache.get(guildId);
       if (!guild) continue;
-
+  
       const guildMember = await guild.members.fetch(member.userId).catch(() => null);
       if (guildMember)
         await guildMember.roles.add(primeRoleId).catch(() => {});
+      }
+    
+    } 
+  
+      console.log("✅ Restore complete");
+    } catch (err) {
+      console.error("Restore failed:", err);
     }
-
-    console.log("✅ Restore complete");
-  } catch (err) {
-    console.error("Restore failed:", err);
   }
-}
 
 /* ================= READY ================= */
 
@@ -817,7 +825,11 @@ if (interaction.commandName === "leaderboard") {
 
           for (let i = 0; i < rows.length; i++) {
 
-            const member = await guild.members.fetch(rows[i].userId).catch(() => null);
+            let member = guild.members.cache.get(row.userId);
+
+            if (!member) {
+              member = await guild.members.fetch(row.userId).catch(() => null);
+            }
 
             const name = member ? member.displayName : "Unknown";
 
