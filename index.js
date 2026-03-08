@@ -198,12 +198,7 @@ async function sendBackup() {
 /* ================= RESTORE ================= */
 
 async function restoreFromBackup() {
-
-  await new Promise(res => db.run("DELETE FROM members", res));
-  await new Promise(res => db.run("DELETE FROM allocations", res));
-  await new Promise(res => db.run("DELETE FROM seasons", res));
-  await new Promise(res => db.run("DELETE FROM events", res));
-  await new Promise(res => db.run("DELETE FROM points", res));
+  
   if (!backupWebhookUrl) return;
 
   try {
@@ -214,6 +209,14 @@ async function restoreFromBackup() {
       console.log("⚠ Sheet empty — restore cancelled");
       return;
     }
+
+    /* SAFE TO WIPE NOW */
+
+    await new Promise(res => db.run("DELETE FROM members", res));
+    await new Promise(res => db.run("DELETE FROM allocations", res));
+    await new Promise(res => db.run("DELETE FROM seasons", res));
+    await new Promise(res => db.run("DELETE FROM events", res));
+    await new Promise(res => db.run("DELETE FROM points", res));
     
     if (data.allocations) {
       for (const a of data.allocations) {
@@ -308,6 +311,8 @@ client.once("ready", async () => {
   console.log("🔄 Rebuilding database from Google Sheets...");
 
   await restoreFromBackup();
+
+  await new Promise(r => setTimeout(r, 4000));
 
   // wait for SQLite writes to finish
   await new Promise(r => setTimeout(r, 3000));
@@ -553,7 +558,7 @@ if (interaction.commandName === "season") {
         `INSERT INTO seasons (name, createdAt, isActive) VALUES (?, ?, 1)`,
         [name, now]
       );
-      sendBackup();
+      setTimeout(sendBackup, 2000);
       interaction.editReply(`✅ Season "${name}" created and set active.`);
     });
   }
@@ -565,7 +570,7 @@ if (interaction.commandName === "season") {
       }
 
       db.run(`UPDATE seasons SET isActive = 0 WHERE id = ?`, [row.id]);
-      sendBackup();
+      setTimeout(sendBackup, 2000);
       interaction.editReply(`🏁 Season "${row.name}" ended.`);
     });
   }
@@ -610,7 +615,7 @@ if (interaction.commandName === "event") {
         [season.id, name, Date.now()]
       );
 
-      sendBackup();
+      setTimeout(sendBackup, 2000);
       return interaction.editReply(`✅ Event "${name}" created.`);
     }
 
@@ -669,7 +674,7 @@ if (interaction.commandName === "event") {
     
               await interaction.editReply(text);
     
-              sendBackup();
+              setTimeout(sendBackup, 2000);
             }
           );
     
@@ -722,7 +727,7 @@ if (interaction.commandName === "points") {
           ]
         );
 
-        sendBackup();
+        setTimeout(sendBackup, 2000);
 
         interaction.editReply(
           `✅ ${amount} points ${sub === "remove" ? "removed from" : "added to"} ${user.username}`
@@ -899,7 +904,7 @@ if (interaction.commandName === "leaderboard") {
         `🟢 ${interaction.member.displayName} added ${months} month(s) to ${guildMember.displayName}`
       );
 
-      await sendBackup();
+      await setTimeout(sendBackup, 2000);
     });
   }
 
@@ -1024,7 +1029,7 @@ if (interaction.commandName === "leaderboard") {
       `🛠 ${interaction.member.displayName} set ${guildMember.displayName} to ${days} days`
     );
 
-    await sendBackup();
+    await setTimeout(sendBackup, 2000);
   }
 
   if (sub === "remove") {
@@ -1039,7 +1044,7 @@ if (interaction.commandName === "leaderboard") {
       `🔴 ${interaction.member.displayName} removed Prime from ${guildMember.displayName}`
     );
 
-    await sendBackup();
+    await setTimeout(sendBackup, 2000);
   }
 
   if (sub === "list") {
@@ -1059,7 +1064,7 @@ if (interaction.commandName === "leaderboard") {
   }
 
   if (sub === "backup") {
-    await sendBackup();
+    await setTimeout(sendBackup, 2000);
     await interaction.editReply("📦 Backup sent.");
   }
 
@@ -1073,7 +1078,7 @@ if (interaction.commandName === "leaderboard") {
     await guildMember.roles.remove(primeRoleId);
     await guildMember.send("❌ **TEST: Prime expired.**");
     await interaction.editReply("⚠ User force expired.");
-    await sendBackup();
+    await setTimeout(sendBackup, 2000);
   }
 });
 
@@ -1105,7 +1110,7 @@ cron.schedule("0 12 * * *", async () => {
     }
   });
 
-  await sendBackup();
+  await setTimeout(sendBackup, 2000);
 });
 
 /* ================= EXPRESS ================= */
