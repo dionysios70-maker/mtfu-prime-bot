@@ -12,12 +12,32 @@ export async function registerPrime(client){
 
   const command = new SlashCommandBuilder()
   .setName("prime")
-  .setDescription("Prime membership")
-  .addSubcommand(s=>s.setName("add")
-    .addUserOption(o=>o.setName("user").setRequired(true))
-    .addIntegerOption(o=>o.setName("months").setRequired(true)))
-  .addSubcommand(s=>s.setName("list"))
-  .addSubcommand(s=>s.setName("backup"));
+  .setDescription("Manage Prime membership")
+  
+  .addSubcommand(s =>
+    s.setName("add")
+     .setDescription("Add Prime membership months")
+     .addUserOption(o =>
+        o.setName("user")
+         .setDescription("User to add Prime to")
+         .setRequired(true)
+     )
+     .addIntegerOption(o =>
+        o.setName("months")
+         .setDescription("Number of months to add")
+         .setRequired(true)
+     )
+  )
+  
+  .addSubcommand(s =>
+    s.setName("list")
+     .setDescription("List all Prime members")
+  )
+  
+  .addSubcommand(s =>
+    s.setName("backup")
+     .setDescription("Force a manual backup")
+  );
 
   const rest = new REST({version:"10"}).setToken(token);
 
