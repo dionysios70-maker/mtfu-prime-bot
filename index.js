@@ -48,7 +48,6 @@ db.serialize(() => {
     )
   `);
   
-  db.run(`DELETE FROM members WHERE expiry <= 0`);
 
   
   db.run(`
