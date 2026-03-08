@@ -36,6 +36,10 @@ const db = new sqlite3.Database("./database.db");
 
 db.serialize(() => {
 
+
+ /* ===== REMOVE LATER===== */
+
+  db.run(`DELETE FROM members WHERE expiry <= 0`);
   /* ===== EXISTING TABLES (UNCHANGED) ===== */
 
   db.run(`
@@ -571,7 +575,7 @@ client.on("interactionCreate", async interaction => {
 if (!systemReady) {
   return interaction.reply({
     content: "Bot is still starting, please wait a few seconds.",
-    flags: 64
+    ephemeral: true
   });
 }
 
@@ -881,10 +885,10 @@ if (interaction.commandName === "leaderboard") {
 }
   
   if (!interaction.member.roles.cache.has(staffRoleId))
-    return interaction.reply({ content: "❌ Staff only.", flags: 64 });
+    return interaction.reply({ content: "❌ Staff only.", ephemeral: true });
 
   if (interaction.channelId !== commandChannelId)
-    return interaction.reply({ content: "❌ Use Prime commands channel.", flags: 64 });
+    return interaction.reply({ content: "❌ Use Prime commands channel.", ephemeral: true });
 
   await interaction.deferReply();
 
@@ -909,10 +913,30 @@ if (interaction.commandName === "leaderboard") {
 
       const newExpiry = baseExpiry + addedTime;
 
-      db.run(
-        `INSERT OR REPLACE INTO members (userId, expiry, warned) VALUES (?, ?, 0)`,
-        [String(user.id), Number(newExpiry)]
-      );
+      if (!newExpiry || newExpiry <= 0) {
+        console.log("❌ Invalid expiry detected, skipping update");
+        return;
+      }
+
+      db.get(`SELECT userId FROM members WHERE userId = ?`, [user.id], (err, existing) => {
+
+        if (existing) {
+      
+          db.run(
+            `UPDATE members SET expiry = ?, warned = 0 WHERE userId = ?`,
+            [Number(newExpiry), String(user.id)]
+          );
+      
+        } else {
+      
+          db.run(
+            `INSERT INTO members (userId, expiry, warned) VALUES (?, ?, 0)`,
+            [String(user.id), Number(newExpiry)]
+          );
+      
+        }
+      
+      });
 
       await guildMember.roles.add(primeRoleId);
 
@@ -1059,8 +1083,8 @@ if (interaction.commandName === "leaderboard") {
       const newExpiry = now + days * 24 * 60 * 60 * 1000;
   
       db.run(
-        `INSERT OR REPLACE INTO members (userId, expiry, warned) VALUES (?, ?, 0)`,
-        [user.id, newExpiry]
+        `UPDATE members SET expiry = ?, warned = 0 WHERE userId = ?`,
+        [Number(newExpiry), String(user.id)]
       );
 
     await guildMember.roles.add(primeRoleId);
