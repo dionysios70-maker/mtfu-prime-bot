@@ -81,7 +81,8 @@ await interaction.editReply(
 
 if(sub === "list"){
 
-const [rows] = await db.query("SELECT * FROM members");
+const result = await db.query("SELECT * FROM members");
+const rows = result.rows;
 
 const now = Date.now();
 
