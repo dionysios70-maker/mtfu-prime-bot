@@ -64,10 +64,11 @@ const base = rows.length && rows[0].expiry > now ? rows[0].expiry : now;
 const expiry = base + months*THIRTY_DAYS;
 
 await db.query(`
-INSERT INTO members (user_id,expiry,warned)
-VALUES (?,?,0)
-ON DUPLICATE KEY UPDATE expiry=?
-`,[user.id,expiry,expiry]);
+INSERT INTO members (user_id, expiry, warned)
+VALUES ($1, $2, 0)
+ON CONFLICT (user_id)
+DO UPDATE SET expiry = $2
+`, [user.id, expiry]);
 
 const member = await interaction.guild.members.fetch(user.id).catch(()=>null);
 if(member) await member.roles.add(roleId).catch(()=>{});
