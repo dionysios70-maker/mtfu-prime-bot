@@ -53,15 +53,17 @@ if(sub === "add"){
 const user = interaction.options.getUser("user");
 const months = interaction.options.getInteger("months");
 
-const [rows] = await db.query(
-"SELECT expiry FROM members WHERE user_id=?",
-[user.id]
+const result = await db.query(
+  "SELECT expiry FROM members WHERE user_id = $1",
+  [user.id]
 );
+
+const rows = result.rows;
 
 const now = Date.now();
 const base = rows.length && rows[0].expiry > now ? rows[0].expiry : now;
 
-const expiry = base + months*THIRTY_DAYS;
+const expiry = base + months * THIRTY_DAYS;
 
 await db.query(`
 INSERT INTO members (user_id, expiry, warned)
