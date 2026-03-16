@@ -67,7 +67,7 @@ await db.query(`
 INSERT INTO members (user_id, expiry, warned)
 VALUES ($1, $2, 0)
 ON CONFLICT (user_id)
-DO UPDATE SET expiry = $2
+DO UPDATE SET expiry = EXCLUDED.expiry
 `, [user.id, expiry]);
 
 const member = await interaction.guild.members.fetch(user.id).catch(()=>null);
