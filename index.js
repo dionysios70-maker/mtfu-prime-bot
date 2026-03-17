@@ -4,6 +4,7 @@ import { Client, GatewayIntentBits } from "discord.js";
 import { initDB } from "./database.js";
 import { registerPrime } from "./commands/prime.js";
 import { startExpiryCheck } from "./systems/expiryCheck.js";
+import { registerSeason } from "./commands/season.js";
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
@@ -18,6 +19,7 @@ client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
 
   await registerPrime(client);
+  await registerSeason(client);
 
   startExpiryCheck(client);
 
