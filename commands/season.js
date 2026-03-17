@@ -4,7 +4,8 @@ import { db } from "../database.js";
 const token = process.env.BOT_TOKEN;
 const guildId = process.env.GUILD_ID;
 
-export async function registerSeason(client){
+export const seasonCommand = command;
+export function registerSeason(client){
 
 const command = new SlashCommandBuilder()
 .setName("season")
@@ -33,12 +34,6 @@ const command = new SlashCommandBuilder()
   .setDescription("List all seasons")
 );
 
-const rest = new REST({ version: "10" }).setToken(token);
-
-await rest.put(
-  Routes.applicationGuildCommands(client.user.id, guildId),
-  { body: [command.toJSON()] }
-);
 
 client.on("interactionCreate", async interaction => {
 
