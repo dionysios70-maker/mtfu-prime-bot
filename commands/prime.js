@@ -8,7 +8,8 @@ const roleId = process.env.PRIME_ROLE_ID;
 
 const THIRTY_DAYS = 30*24*60*60*1000;
 
-export async function registerPrime(client){
+export const primeCommand = command;
+export function registerPrime(client){
 
 const command = new SlashCommandBuilder()
 .setName("prime")
@@ -32,12 +33,6 @@ const command = new SlashCommandBuilder()
   .setDescription("List prime members")
 );
 
-const rest = new REST({version:"10"}).setToken(token);
-
-await rest.put(
-Routes.applicationGuildCommands(client.user.id,guildId),
-{body:[command.toJSON()]}
-);
 
 client.on("interactionCreate", async interaction=>{
 
