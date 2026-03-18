@@ -34,7 +34,6 @@ await registerSeason(client);
 
 
 
-  startExpiryCheck(client);
 
   console.log("Bot ready");
 
