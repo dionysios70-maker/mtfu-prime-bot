@@ -4,9 +4,6 @@ import { db } from "../database.js";
 const token = process.env.BOT_TOKEN;
 const guildId = process.env.GUILD_ID;
 
-export const seasonCommand = command;
-export function registerSeason(client){
-
 const command = new SlashCommandBuilder()
 .setName("season")
 .setDescription("Season management")
@@ -33,6 +30,10 @@ const command = new SlashCommandBuilder()
   sub.setName("list")
   .setDescription("List all seasons")
 );
+
+export const seasonCommand = command;
+
+export function registerSeason(client){
 
 
 client.on("interactionCreate", async interaction => {
