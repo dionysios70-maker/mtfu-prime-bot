@@ -15,20 +15,20 @@ await initDB();
 
 client.once("clientReady", async () => {
 
-const rest = new REST({ version: "10" }).setToken(process.env.BOT_TOKEN);
+  const rest = new REST({ version: "10" }).setToken(process.env.BOT_TOKEN);
+  
+  await rest.put(
+    Routes.applicationGuildCommands(client.user.id, process.env.GUILD_ID),
+    {
+      body: [
+        primeCommand.toJSON(),
+        seasonCommand.toJSON()
+      ]
+    }
+  );
 
-await rest.put(
-  Routes.applicationGuildCommands(client.user.id, process.env.GUILD_ID),
-  {
-    body: [
-      primeCommand.toJSON(),
-      seasonCommand.toJSON()
-    ]
-  }
-);
-
-await registerPrime(client);
-await registerSeason(client);
+  await registerPrime(client);
+  await registerSeason(client);
 
   console.log(`Logged in as ${client.user.tag}`);
 
