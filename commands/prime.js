@@ -8,8 +8,7 @@ const roleId = process.env.PRIME_ROLE_ID;
 
 const THIRTY_DAYS = 30*24*60*60*1000;
 
-export const primeCommand = command;
-export function registerPrime(client){
+
 
 const command = new SlashCommandBuilder()
 .setName("prime")
@@ -33,6 +32,8 @@ const command = new SlashCommandBuilder()
   .setDescription("List prime members")
 );
 
+export const primeCommand = command;
+export function registerPrime(client){
 
 client.on("interactionCreate", async interaction=>{
 
