@@ -13,9 +13,14 @@ const token = process.env.BOT_TOKEN;
 
 await initDB();
 
+// ✅ REGISTER FIRST
+registerPrime(client);
+registerSeason(client);
+
+// ✅ THEN READY EVENT
 client.once("ready", async () => {
 
-  const rest = new REST({ version: "10" }).setToken(process.env.BOT_TOKEN);
+  const rest = new REST({ version: "10" }).setToken(token);
   
   await rest.put(
     Routes.applicationGuildCommands(client.user.id, process.env.GUILD_ID),
@@ -26,9 +31,6 @@ client.once("ready", async () => {
       ]
     }
   );
-
-  await registerPrime(client);
-  await registerSeason(client);
 
   console.log(`Logged in as ${client.user.tag}`);
 
