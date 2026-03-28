@@ -1,4 +1,3 @@
-console.log("TOKEN:", token);
 import { initDB } from "./database.js";
 import express from "express";
 import { Client, GatewayIntentBits, REST, Routes } from "discord.js";
@@ -11,6 +10,7 @@ const client = new Client({
 });
 
 const token = process.env.BOT_TOKEN;
+console.log("TOKEN:", token);
 
 await initDB();
 
