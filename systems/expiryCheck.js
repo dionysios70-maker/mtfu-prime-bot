@@ -9,7 +9,8 @@ export function startExpiryCheck(client){
 
 cron.schedule("0 12 * * *", async ()=>{
 
-const [rows] = await db.query("SELECT * FROM members");
+const result = await db.query("SELECT * FROM members");
+const rows = result.rows;
 const now = Date.now();
 
 const guild = client.guilds.cache.get(guildId);
