@@ -51,7 +51,7 @@ if (sub === "add") {
     const user = interaction.options.getUser("user");
     const months = interaction.options.getInteger("months");
 
-    // ✅ VALIDATION
+    // VALIDATION
     if (!months || months <= 0 || months > 24) {
       return interaction.editReply("❌ Invalid months (1–24 only)");
     }
@@ -61,26 +61,37 @@ if (sub === "add") {
       [user.id]
     );
 
-const rows = result.rows;
+    const rows = result.rows;
 
-const now = Date.now();
-const base = rows.length && rows[0].expiry > now ? rows[0].expiry : now;
+    const now = Date.now();
+    const base = rows.length && rows[0].expiry > now ? rows[0].expiry : now;
 
-const expiry = base + months * THIRTY_DAYS;
+    const expiry = base + (months * THIRTY_DAYS);
 
-await db.query(`
-INSERT INTO members (user_id, expiry, warned)
-VALUES ($1, $2, 0)
-ON CONFLICT (user_id)
-DO UPDATE SET expiry = EXCLUDED.expiry
-`, [user.id, expiry]);
+    // SAFETY CHECK
+    if (expiry > 9000000000000000) {
+      console.error("Expiry overflow:", expiry);
+      return interaction.editReply("❌ Internal error");
+    }
 
-const member = await interaction.guild.members.fetch(user.id).catch(()=>null);
-if(member) await member.roles.add(roleId).catch(()=>{});
+    await db.query(`
+      INSERT INTO members (user_id, expiry, warned)
+      VALUES ($1, $2, 0)
+      ON CONFLICT (user_id)
+      DO UPDATE SET expiry = EXCLUDED.expiry
+    `, [user.id, expiry]);
 
-await interaction.editReply(
-`${user.username} updated until <t:${Math.floor(expiry/1000)}:F>`
-);
+    const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+    if (member) await member.roles.add(roleId).catch(() => {});
+
+    await interaction.editReply(
+      `✅ ${user.username} updated until <t:${Math.floor(expiry / 1000)}:F>`
+    );
+
+  } catch (err) {
+    console.error(err);
+    await interaction.editReply("❌ Something went wrong");
+  }
 
 }
 
