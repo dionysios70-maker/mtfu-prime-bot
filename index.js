@@ -42,7 +42,9 @@ client.once("ready", async () => {
 
 });
 
-client.login(token);
+client.login(token)
+  .then(() => console.log("LOGIN SUCCESS"))
+  .catch(err => console.error("LOGIN ERROR:", err));
 
 const app = express();
 app.get("/", (req,res)=>res.send("Bot running"));
