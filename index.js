@@ -12,7 +12,9 @@ const client = new Client({
 const token = process.env.BOT_TOKEN;
 console.log("TOKEN:", token);
 
-await initDB();
+initDB()
+  .then(() => console.log("DB READY"))
+  .catch(err => console.error("DB ERROR:", err));
 
 // ✅ REGISTER FIRST
 registerPrime(client);
