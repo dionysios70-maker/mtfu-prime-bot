@@ -44,15 +44,22 @@ const sub = interaction.options.getSubcommand();
 
 await interaction.deferReply();
 
-if(sub === "add"){
+if (sub === "add") {
 
-const user = interaction.options.getUser("user");
-const months = interaction.options.getInteger("months");
+  try {
 
-const result = await db.query(
-  "SELECT expiry FROM members WHERE user_id = $1",
-  [user.id]
-);
+    const user = interaction.options.getUser("user");
+    const months = interaction.options.getInteger("months");
+
+    // ✅ VALIDATION
+    if (!months || months <= 0 || months > 24) {
+      return interaction.editReply("❌ Invalid months (1–24 only)");
+    }
+
+    const result = await db.query(
+      "SELECT expiry FROM members WHERE user_id = $1",
+      [user.id]
+    );
 
 const rows = result.rows;
 
@@ -77,23 +84,35 @@ await interaction.editReply(
 
 }
 
-if(sub === "list"){
+if (sub === "list") {
 
-const result = await db.query("SELECT * FROM members");
-const rows = result.rows;
+  try {
 
-const now = Date.now();
+    const result = await db.query("SELECT * FROM members");
+    const rows = result.rows;
 
-const text = rows.map(r=>{
+    const now = Date.now();
 
-const days = Math.ceil((r.expiry-now)/(1000*60*60*24));
+    if (!rows.length) {
+      return interaction.editReply("No members");
+    }
 
-return `<@${r.user_id}> — ${days} days`;
+    const text = rows.map(r => {
 
-}).join("\n");
+      if (!r.expiry) return `<@${r.user_id}> — invalid expiry`;
 
-await interaction.editReply(text || "No members");
+      const days = Math.ceil((r.expiry - now) / (1000 * 60 * 60 * 24));
 
+      return `<@${r.user_id}> — ${days} days`;
+
+    }).join("\n");
+
+    await interaction.editReply(text);
+
+  } catch (err) {
+    console.error(err);
+    await interaction.editReply("❌ Failed to fetch members");
+  }
 }
 
 });
