@@ -1,3 +1,4 @@
+console.log("TOKEN:", token);
 import { initDB } from "./database.js";
 import express from "express";
 import { Client, GatewayIntentBits, REST, Routes } from "discord.js";
